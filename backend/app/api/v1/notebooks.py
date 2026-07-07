@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
-from app.models import Notebook, Question, Topic
-from app.schemas import (
+from app.db.session import get_db
+from app.models.notebook import Notebook, Question, Topic
+from app.schemas.notebook import (
     GenerateTopicsRequest,
     NotebookCreate,
     NotebookResponse,
@@ -14,10 +14,10 @@ from app.schemas import (
     QuestionResponse,
     TopicResponse,
 )
-from app.services import TutorService
+from app.services.chat import AI_Service
 
 router = APIRouter()
-tutor_service = TutorService()
+ai_service = AI_Service()
 
 
 @router.post("/notebooks", response_model=NotebookResponse, status_code=201)
@@ -42,7 +42,7 @@ async def generate_topics(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        topics = await tutor_service.generate_topics(body.prompt, notebook_id, db)
+        topics = await ai_service.generate_topics(body.prompt, notebook_id, db)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return topics

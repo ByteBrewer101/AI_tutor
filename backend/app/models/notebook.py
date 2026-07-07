@@ -5,7 +5,7 @@ from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.db.session import Base
 
 
 class Notebook(Base):
@@ -25,6 +25,7 @@ class Notebook(Base):
     )
 
     topics: Mapped[list["Topic"]] = relationship(back_populates="notebook", cascade="all, delete-orphan")
+    documents: Mapped[list["Document"]] = relationship(back_populates="notebook", cascade="all, delete-orphan")
 
 
 class Topic(Base):

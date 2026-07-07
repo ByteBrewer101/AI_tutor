@@ -5,10 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import Notebook, Topic
+from app.models.notebook import Notebook, Topic
 
 
-class TutorService:
+class AI_Service:
     def __init__(self) -> None:
         self.llm = ChatOllama(
             model=settings.OLLAMA_MODEL,
