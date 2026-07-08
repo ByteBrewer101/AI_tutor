@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class NotebookCreate(BaseModel):
@@ -24,6 +24,14 @@ class TopicResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+
+class TopicAIResponse(BaseModel):
+    """Schema the LLM must fill in when generating subtopics."""
+    topics: list[str] = Field(
+        ..., description="A list of concise subtopic titles for the given learning topic."
+    )
 
 
 class QuestionCreate(BaseModel):
