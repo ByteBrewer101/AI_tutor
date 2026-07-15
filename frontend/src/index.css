@@ -1,0 +1,59 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Cormorant+Garamond:wght@300;400;500;600;700&family=Courier+Prime:wght@400;700&family=EB+Garamond:wght@400;500;600;700&display=swap');
+
+@theme {
+  --color-paper: var(--theme-paper);
+  --color-ink: var(--theme-ink);
+  --color-pine: var(--theme-pine);
+  --color-claret: var(--theme-claret);
+  --color-walnut: var(--theme-walnut);
+  --color-brass: var(--theme-brass);
+
+  --font-display: "Cormorant Garamond", serif;
+  --font-body: "EB Garamond", serif;
+  --font-hand: "Caveat", cursive;
+  --font-mono: "Courier Prime", monospace;
+  
+  --text-xs: 0.75rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1.0625rem;
+  --text-lg: 1.375rem;
+  --text-xl: 1.875rem;
+  --text-2xl: 2.5rem;
+  --text-3xl: 3.25rem;
+
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  :root {
+    --theme-paper: #F1EAD9;
+    --theme-ink: #2A241C;
+    --theme-pine: #39493D;
+    --theme-claret: #6E2E2C;
+    --theme-walnut: #5A4331;
+    --theme-brass: #9C7A3C;
+  }
+
+  .dark {
+    --theme-paper: #1A1614;
+    --theme-ink: #EAE0D5;
+    --theme-pine: #7A9381;
+    --theme-claret: #D16A67;
+    --theme-walnut: #8B6E57;
+    --theme-brass: #C3A365;
+  }
+
+  body {
+    @apply bg-paper text-ink font-body selection:bg-pine/20 transition-colors duration-500 ease-in-out;
+    line-height: 1.7;
+    margin: 0;
+    padding: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-[0.01em];
+  }
+}

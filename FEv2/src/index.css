@@ -1,0 +1,130 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-paper: #F1EAD9;
+  --color-paper-dark: #E8DFC8;
+  --color-ink: #2A241C;
+  --color-pine: #39493D;
+  --color-claret: #6E2E2C;
+  --color-walnut: #5A4331;
+  --color-brass: #9C7A3C;
+
+  --font-display: 'Cormorant Garamond', 'Georgia', serif;
+  --font-body: 'EB Garamond', 'Georgia', serif;
+  --font-hand: 'Caveat', cursive;
+  --font-mono: 'Courier Prime', 'Consolas', monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1.0625rem;
+  --text-lg: 1.375rem;
+  --text-xl: 1.875rem;
+  --text-2xl: 2.5rem;
+  --text-3xl: 3.25rem;
+
+  --leading-body: 1.7;
+  --tracking-heading: 0.01em;
+
+  --shadow-hard: 2px 3px 0 rgba(42, 36, 28, 0.06);
+  --shadow-lifted: 3px 5px 0 rgba(42, 36, 28, 0.09);
+
+  --radius-card: 2px;
+  --radius-button: 3px;
+
+  --font-heading: var(--font-display);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
+
+  --color-background: var(--color-paper);
+  --color-foreground: var(--color-ink);
+  --color-card: var(--color-paper);
+  --color-card-foreground: var(--color-ink);
+  --color-popover: var(--color-paper);
+  --color-popover-foreground: var(--color-ink);
+  --color-primary: var(--color-pine);
+  --color-primary-foreground: var(--color-paper);
+  --color-secondary: var(--color-paper-dark);
+  --color-secondary-foreground: var(--color-ink);
+  --color-muted: var(--color-paper-dark);
+  --color-muted-foreground: var(--color-walnut);
+  --color-accent: var(--color-paper-dark);
+  --color-accent-foreground: var(--color-ink);
+  --color-destructive: var(--color-claret);
+  --color-border: rgba(90, 67, 49, 0.25);
+  --color-input: rgba(90, 67, 49, 0.4);
+  --color-ring: var(--color-pine);
+
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-2xl: 8px;
+  --radius-3xl: 10px;
+  --radius-4xl: 12px;
+  --radius: 3px;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    border-color: var(--color-border);
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    line-height: var(--leading-body);
+    color: var(--color-ink);
+    background-color: var(--color-paper);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: var(--tracking-heading);
+    color: var(--color-ink);
+    line-height: 1.2;
+  }
+
+  a {
+    color: var(--color-pine);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    text-decoration-color: rgba(57, 73, 61, 0.4);
+    transition: text-decoration-color 0.15s ease;
+  }
+
+  a:hover {
+    text-decoration-color: var(--color-pine);
+  }
+
+  ::selection {
+    background-color: rgba(156, 122, 60, 0.2);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-pine);
+    outline-offset: 2px;
+  }
+}
+
+@keyframes ink-fill {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
