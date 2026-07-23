@@ -261,8 +261,15 @@ export async function deleteNote(noteId) {
 }
 
 export async function updateTopicContent(notebookId, topicId, content) {
-  console.warn('[api] updateTopicContent has no backend endpoint, using mock')
-  return mock.updateTopicContent(notebookId, topicId, content)
+  try {
+    const data = await apiFetch(`/topics/${topicId}/content`, {
+      method: 'PUT',
+      body: JSON.stringify({ id: topicId, title: '', content }),
+    })
+    return toCamel(data)
+  } catch (err) {
+    return mockFallback('updateTopicContent', err, () => mock.updateTopicContent(notebookId, topicId, content))
+  }
 }
 
 export async function sendChatMessage(topicId, message, chatHistory = []) {

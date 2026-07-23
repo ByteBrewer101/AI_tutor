@@ -123,7 +123,7 @@ function TopicSession() {
           )}
           {mode === 'quiz' && (
             <motion.div key="quiz" {...pageTurn} className="flex-1 min-h-0">
-              <QuizMode topicId={topicId} topicTitle={topic.title} />
+              <QuizMode topicId={topicId} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -175,7 +175,6 @@ function ReadMode({ topicId, contentVersion }) {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
     api.fetchTopicContent(topicId).then((data) => {
       if (!cancelled) {
         setContent(data?.content || '')
@@ -267,24 +266,6 @@ function TakeawayCard({ takeaways }) {
   )
 }
 
-function SuggestionChips({ suggestions, onSelect }) {
-  if (!suggestions || suggestions.length === 0) return null
-
-  return (
-    <div className="flex flex-wrap gap-2 mt-3">
-      {suggestions.map((s, i) => (
-        <button
-          key={i}
-          onClick={() => onSelect(s)}
-          className="px-3 py-1.5 text-sm font-body bg-paper-dark/50 border border-walnut/15 rounded-[2px] text-walnut hover:text-ink hover:bg-paper-dark transition-colors cursor-pointer"
-        >
-          {s}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 function ChatBubble({ message }) {
   const isUser = message.role === 'user'
 
@@ -352,6 +333,7 @@ function LearnInput({ topic, messages, setMessages, sending, setSending, onConte
   const [toast, setToast] = useState(null)
   const messageCountRef = useRef(0)
   const textareaRef = useRef(null)
+  const msgIdRef = useRef(0)
 
   const latestSuggestions = messages.length > 0
     ? messages[messages.length - 1]
@@ -382,7 +364,7 @@ function LearnInput({ topic, messages, setMessages, sending, setSending, onConte
 
   const sendMessage = async (text) => {
     if (!text.trim() || sending) return
-    const userMsg = { id: `user_${Date.now()}`, role: 'user', content: text }
+    const userMsg = { id: `user_${++msgIdRef.current}`, role: 'user', content: text }
     const updatedMessages = [...messages, userMsg]
     setMessages(updatedMessages)
     setInput('')
@@ -396,7 +378,7 @@ function LearnInput({ topic, messages, setMessages, sending, setSending, onConte
       const historyForApi = updatedMessages.map((m) => ({ role: m.role, content: m.content }))
       const result = await api.sendChatMessage(topic.id, text, historyForApi)
       const assistantMsg = {
-        id: `ai_${Date.now()}`,
+        id: `ai_${++msgIdRef.current}`,
         role: 'assistant',
         content: result.reply,
         responseType: result.responseType,
@@ -414,7 +396,7 @@ function LearnInput({ topic, messages, setMessages, sending, setSending, onConte
     } catch {
       setMessages((prev) => [
         ...prev,
-        { id: `ai_${Date.now()}`, role: 'assistant', content: 'Sorry, something went wrong. Please try again.', responseType: 'conversational', suggestions: [], keyTakeaways: [] },
+        { id: `ai_${++msgIdRef.current}`, role: 'assistant', content: 'Sorry, something went wrong. Please try again.', responseType: 'conversational', suggestions: [], keyTakeaways: [] },
       ])
     } finally {
       setSending(false)
@@ -511,7 +493,7 @@ function LearnInput({ topic, messages, setMessages, sending, setSending, onConte
   )
 }
 
-function QuizMode({ topicId, topicTitle }) {
+function QuizMode({ topicId }) {
   const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -522,7 +504,6 @@ function QuizMode({ topicId, topicTitle }) {
 
   const fetchQuiz = useCallback(async () => {
     setGenerating(true)
-    setLoading(true)
     try {
       const data = await api.generateQuiz(topicId)
       setQuestions(data?.questions || [])
@@ -535,8 +516,24 @@ function QuizMode({ topicId, topicTitle }) {
   }, [topicId])
 
   useEffect(() => {
-    fetchQuiz()
-  }, [fetchQuiz])
+    let cancelled = false
+    const load = async () => {
+      setGenerating(true)
+      try {
+        const data = await api.generateQuiz(topicId)
+        if (!cancelled) setQuestions(data?.questions || [])
+      } catch {
+        if (!cancelled) setQuestions([])
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+          setGenerating(false)
+        }
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [topicId])
 
   const handleCheck = () => {
     if (questions[current]?.type === 'mcq' && selected === questions[current].answer) {

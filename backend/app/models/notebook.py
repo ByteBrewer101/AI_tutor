@@ -63,9 +63,6 @@ class Topic(Base):
     progress: Mapped["Progress | None"] = relationship(
         back_populates="topic", uselist=False, cascade="all, delete-orphan"
     )
-    messages: Mapped[list["Message"]] = relationship(
-        back_populates="topic", cascade="all, delete-orphan"
-    )
 
 
 class Question(Base):

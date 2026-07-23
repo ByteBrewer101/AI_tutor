@@ -9,7 +9,6 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3.2"
     APP_NAME: str = "AI Tutor"
     CONTENT_DIR: str = "storage/markdown"
-    CHAT_SUMMARY_THRESHOLD: int = 5
 
 
 settings = Settings()
