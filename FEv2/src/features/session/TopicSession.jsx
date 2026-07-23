@@ -209,24 +209,28 @@ function LearnMode({ topic }) {
     },
   ])
   const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
 
-  const handleSend = () => {
-    if (!input.trim()) return
-    setMessages((prev) => [
-      ...prev,
-      { id: `user_${Date.now()}`, role: 'user', content: input },
-    ])
+  const handleSend = async () => {
+    if (!input.trim() || sending) return
+    const userMsg = { id: `user_${Date.now()}`, role: 'user', content: input }
+    setMessages((prev) => [...prev, userMsg])
     setInput('')
-    setTimeout(() => {
+    setSending(true)
+    try {
+      const reply = await api.sendChatMessage(topic.id, input)
       setMessages((prev) => [
         ...prev,
-        {
-          id: `ai_${Date.now()}`,
-          role: 'assistant',
-          content: `This is a placeholder response about "${topic.title}". In the real app, this would be an AI-generated explanation. The backend would stream the response using the LLM.`,
-        },
+        { id: `ai_${Date.now()}`, role: 'assistant', content: reply },
       ])
-    }, 500)
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { id: `ai_${Date.now()}`, role: 'assistant', content: 'Sorry, something went wrong. Please try again.' },
+      ])
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -252,10 +256,13 @@ function LearnMode({ topic }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          placeholder="Ask about this topic..."
-          className="flex-1 bg-transparent border-b border-walnut/40 focus:border-pine font-body text-base py-2 outline-none placeholder:text-ink/40 transition-colors"
+          placeholder={sending ? 'Waiting for response...' : 'Ask about this topic...'}
+          disabled={sending}
+          className="flex-1 bg-transparent border-b border-walnut/40 focus:border-pine font-body text-base py-2 outline-none placeholder:text-ink/40 transition-colors disabled:opacity-50"
         />
-        <Button onClick={handleSend} size="sm">Send</Button>
+        <Button onClick={handleSend} size="sm" disabled={sending}>
+          {sending ? '...' : 'Send'}
+        </Button>
       </div>
     </div>
   )

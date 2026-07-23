@@ -10,3 +10,6 @@ wheels/
 *.egg-info
 
 # Virtual environments
+
+# Storage
+backend/storage/markdown/*.md

@@ -20,7 +20,7 @@ function LibraryPage() {
   const [newDesc, setNewDesc] = useState('')
 
   useEffect(() => {
-    api.fetchNotebooks().then(setNotebooks)
+    api.fetchNotebooksList().then(setNotebooks)
   }, [])
 
   const handleCreate = async () => {

@@ -1,25 +1,44 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { BookOpen, RotateCcw } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { slideUp, staggerContainer, inkReveal } from '@/design/motion'
-import { getNotebooks } from '@/lib/mockData'
+import * as api from '@/lib/api'
 
 function ReviewPage() {
   const [view, setView] = useState('notes')
-  const notebooks = getNotebooks()
+  const [notebooks, setNotebooks] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.fetchNotebooks().then((nbs) => {
+      setNotebooks(nbs)
+      setLoading(false)
+    })
+  }, [])
+
   const allNotes = notebooks.flatMap((nb) =>
     nb.topics.flatMap((t) =>
       t.userNotes.map((n) => ({ ...n, topicTitle: t.title, notebookTitle: nb.title }))
     )
-  ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+  ).sort((a, b) => new Date(b.timestamp || b.createdAt) - new Date(a.timestamp || a.createdAt))
 
   const allQuestions = notebooks.flatMap((nb) =>
     nb.topics.flatMap((t) =>
       t.questions.map((q) => ({ ...q, topicTitle: t.title }))
     )
   )
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-48 h-px bg-walnut/20 relative overflow-hidden">
+          <div className="absolute inset-y-0 left-0 bg-pine animate-[ink-fill_1.5s_ease-out]" style={{ width: '60%' }} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>

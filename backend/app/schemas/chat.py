@@ -4,9 +4,11 @@ from pydantic import BaseModel
 
 
 class ChatRequest(BaseModel):
-    notebook_id: uuid.UUID
+    topic_id: uuid.UUID
     message: str
 
 
 class ChatResponse(BaseModel):
+    topic_id: uuid.UUID
     reply: str
+    should_regenerate: bool = False

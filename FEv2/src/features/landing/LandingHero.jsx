@@ -113,7 +113,7 @@ function LandingHero() {
                 viewBox="0 0 100 100"
                 aria-hidden="true"
               >
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#5A4331" strokeWidth="3" strokeDasharray="8 3 15 4" />
+                <circle cx="50" cy="50" r="40" fill="none" style={{ stroke: 'var(--color-walnut)' }} strokeWidth="3" strokeDasharray="8 3 15 4" />
               </svg>
             </div>
           </motion.div>

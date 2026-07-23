@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *, .nord *));
 
 @theme {
   --color-paper: #F1EAD9;
@@ -127,4 +127,116 @@
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* ── Dark theme (ink-blue) ────────────────────────────────────── */
+.dark {
+  --color-paper: #1A1C2A;
+  --color-paper-dark: #22243A;
+  --color-ink: #E0DCC8;
+  --color-pine: #7BA68A;
+  --color-claret: #C47070;
+  --color-walnut: #8A8694;
+  --color-brass: #C9A855;
+
+  --color-background: var(--color-paper);
+  --color-foreground: var(--color-ink);
+  --color-card: var(--color-paper-dark);
+  --color-card-foreground: var(--color-ink);
+  --color-popover: var(--color-paper-dark);
+  --color-popover-foreground: var(--color-ink);
+  --color-primary: var(--color-pine);
+  --color-primary-foreground: var(--color-paper);
+  --color-secondary: #2A2D45;
+  --color-secondary-foreground: var(--color-ink);
+  --color-muted: #2A2D45;
+  --color-muted-foreground: var(--color-walnut);
+  --color-accent: #2A2D45;
+  --color-accent-foreground: var(--color-ink);
+  --color-destructive: var(--color-claret);
+  --color-border: rgba(138, 134, 148, 0.25);
+  --color-input: rgba(138, 134, 148, 0.4);
+  --color-ring: var(--color-pine);
+
+  --shadow-hard: 2px 3px 0 rgba(0, 0, 0, 0.2);
+  --shadow-lifted: 3px 5px 0 rgba(0, 0, 0, 0.25);
+}
+
+.dark body {
+  color: var(--color-ink);
+  background-color: var(--color-paper);
+}
+
+.dark a {
+  color: var(--color-pine);
+  text-decoration-color: rgba(123, 166, 138, 0.4);
+}
+
+.dark a:hover {
+  text-decoration-color: var(--color-pine);
+}
+
+.dark ::selection {
+  background-color: rgba(201, 168, 85, 0.25);
+  color: var(--color-ink);
+}
+
+.dark :focus-visible {
+  outline-color: var(--color-pine);
+}
+
+/* ── Nord theme (cool blue-gray) ──────────────────────────────── */
+.nord {
+  --color-paper: #2E3440;
+  --color-paper-dark: #3B4252;
+  --color-ink: #ECEFF4;
+  --color-pine: #A3BE8C;
+  --color-claret: #BF616A;
+  --color-walnut: #7B88A1;
+  --color-brass: #EBCB8B;
+
+  --color-background: var(--color-paper);
+  --color-foreground: var(--color-ink);
+  --color-card: var(--color-paper-dark);
+  --color-card-foreground: var(--color-ink);
+  --color-popover: var(--color-paper-dark);
+  --color-popover-foreground: var(--color-ink);
+  --color-primary: var(--color-pine);
+  --color-primary-foreground: var(--color-paper);
+  --color-secondary: #434C5E;
+  --color-secondary-foreground: var(--color-ink);
+  --color-muted: #434C5E;
+  --color-muted-foreground: var(--color-walnut);
+  --color-accent: #434C5E;
+  --color-accent-foreground: var(--color-ink);
+  --color-destructive: var(--color-claret);
+  --color-border: rgba(123, 136, 161, 0.25);
+  --color-input: rgba(123, 136, 161, 0.4);
+  --color-ring: var(--color-pine);
+
+  --shadow-hard: 2px 3px 0 rgba(0, 0, 0, 0.2);
+  --shadow-lifted: 3px 5px 0 rgba(0, 0, 0, 0.25);
+}
+
+.nord body {
+  color: var(--color-ink);
+  background-color: var(--color-paper);
+}
+
+.nord a {
+  color: var(--color-pine);
+  text-decoration-color: rgba(163, 190, 140, 0.4);
+}
+
+.nord a:hover {
+  text-decoration-color: var(--color-pine);
+}
+
+.nord ::selection {
+  background-color: rgba(235, 203, 139, 0.25);
+  color: var(--color-ink);
+}
+
+.nord :focus-visible {
+  outline-color: var(--color-pine);
 }

@@ -1,17 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { getNotebooks } from '@/lib/mockData'
+import * as api from '@/lib/api'
 
 function NotebookTree({ onNavigate }) {
-  const [notebooks] = useState(() => getNotebooks())
+  const [notebooks, setNotebooks] = useState([])
   const [expandedIds, setExpandedIds] = useState(() => {
     const path = window.location.pathname
     const match = path.match(/\/notebook\/([^/]+)/)
     return match ? new Set([match[1]]) : new Set()
   })
   const { notebookId, topicId } = useParams()
+
+  useEffect(() => {
+    api.fetchNotebooksList().then(setNotebooks)
+  }, [])
 
   const toggleExpand = (id) => {
     setExpandedIds((prev) => {

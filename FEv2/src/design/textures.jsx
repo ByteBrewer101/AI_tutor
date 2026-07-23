@@ -1,7 +1,7 @@
 export function PaperTexture() {
   return (
     <div
-      className="pointer-events-none fixed inset-0 z-50 aria-hidden"
+      className="pointer-events-none fixed inset-0 z-50 aria-hidden dark:opacity-[0.015]"
       aria-hidden="true"
       style={{ opacity: 0.03 }}
     >
@@ -35,7 +35,7 @@ export function CoffeeRing({ className = '', size = 80 }) {
         cy="50"
         r="40"
         fill="none"
-        stroke="#5A4331"
+        style={{ stroke: 'var(--color-walnut)' }}
         strokeWidth="3"
         strokeDasharray="8 3 15 4"
         opacity="0.7"
@@ -45,7 +45,7 @@ export function CoffeeRing({ className = '', size = 80 }) {
         cy="48"
         r="38"
         fill="none"
-        stroke="#5A4331"
+        style={{ stroke: 'var(--color-walnut)' }}
         strokeWidth="1"
         strokeDasharray="12 5"
         opacity="0.4"
@@ -65,14 +65,14 @@ export function DogEar({ className = '' }) {
     >
       <path
         d="M0 0 L24 0 L24 24 Z"
-        fill="#E8DFC8"
-        stroke="#5A4331"
+        style={{ fill: 'var(--color-paper-dark)' }}
+        stroke="var(--color-walnut)"
         strokeWidth="0.5"
         opacity="0.6"
       />
       <path
         d="M24 0 L24 24 L0 0 Z"
-        fill="#D4C9B0"
+        style={{ fill: 'var(--color-paper)' }}
         opacity="0.3"
       />
     </svg>

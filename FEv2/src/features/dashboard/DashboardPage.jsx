@@ -1,27 +1,45 @@
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { BookOpen, Clock, Flame, Target } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Stamp } from '@/components/ui/stamp'
 import { ProgressThread } from '@/components/ui/progress-thread'
 import { slideUp, staggerContainer } from '@/design/motion'
-import { getNotebooks } from '@/lib/mockData'
+import * as api from '@/lib/api'
 
 const mockStats = {
   streak: 12,
   totalPages: 147,
   totalHours: 34.5,
-  topicsCompleted: 8,
-  topicsTotal: 11,
   weeklyActivity: [3, 5, 2, 4, 6, 1, 3],
 }
 
 function DashboardPage() {
-  const notebooks = getNotebooks()
+  const [notebooks, setNotebooks] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.fetchNotebooksList().then((nbs) => {
+      setNotebooks(nbs)
+      setLoading(false)
+    })
+  }, [])
+
   const totalTopics = notebooks.reduce((sum, nb) => sum + nb.topics.length, 0)
   const completedTopics = notebooks.reduce(
-    (sum, nb) => sum + nb.topics.filter((t) => t.progress.read).length,
+    (sum, nb) => sum + nb.topics.filter((t) => t.progress?.read).length,
     0
   )
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-48 h-px bg-walnut/20 relative overflow-hidden">
+          <div className="absolute inset-y-0 left-0 bg-pine animate-[ink-fill_1.5s_ease-out]" style={{ width: '60%' }} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
