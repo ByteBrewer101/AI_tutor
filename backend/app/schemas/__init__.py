@@ -1,4 +1,4 @@
-from app.schemas.chat import ChatRequest, ChatResponse
+from app.schemas.chat import ChatRequest, ChatReply, ChatResponse
 from app.schemas.document import DocumentResponse
 from app.schemas.notebook import (
     GenerateTopicsRequest,
@@ -16,6 +16,7 @@ from app.schemas.notebook import (
 
 __all__ = [
     "ChatRequest",
+    "ChatReply",
     "ChatResponse",
     "DocumentResponse",
     "GenerateTopicsRequest",

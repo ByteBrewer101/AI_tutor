@@ -1,14 +1,31 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BookOpen, MessageCircle, HelpCircle, CheckCircle, Circle } from 'lucide-react'
-import { NotebookSpread } from '@/components/layout/NotebookSpread'
-import { MarginRail } from '@/components/marginalia/MarginRail'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeHighlight from 'rehype-highlight'
+import 'highlight.js/styles/github.css'
+import {
+  BookOpen,
+  MessageCircle,
+  HelpCircle,
+  CheckCircle,
+  Circle,
+  Save,
+  Loader2,
+  FileText,
+  Send,
+  Lightbulb,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Stamp } from '@/components/ui/stamp'
-import { inkReveal, pageTurn } from '@/design/motion'
+import { pageTurn } from '@/design/motion'
 import { cn } from '@/lib/utils'
 import * as api from '@/lib/api'
+
+const SUMMARIZE_THRESHOLD = 5
 
 function TopicSession() {
   const { notebookId, topicId } = useParams()
@@ -16,6 +33,11 @@ function TopicSession() {
   const [notebook, setNotebook] = useState(null)
   const [loading, setLoading] = useState(true)
   const [mode, setMode] = useState('read')
+  const [contentVersion, setContentVersion] = useState(0)
+
+  const [chatMessages, setChatMessages] = useState([])
+  const [chatSending, setChatSending] = useState(false)
+  const chatMessagesEndRef = useRef(null)
 
   useEffect(() => {
     Promise.all([
@@ -25,8 +47,30 @@ function TopicSession() {
       setTopic(t)
       setNotebook(nb)
       setLoading(false)
+      setChatMessages([
+        {
+          id: '1',
+          role: 'assistant',
+          content: `Hey! Let's dive into "${nb?.title || 'this topic'}". I'm here to help you understand it step by step. What would you like to start with?`,
+          responseType: 'conversational',
+          suggestions: [
+            'Give me an overview of this topic',
+            'What are the key concepts I should know?',
+            'Explain the basics to me',
+          ],
+          keyTakeaways: [],
+        },
+      ])
     })
   }, [notebookId, topicId])
+
+  const handleContentUpdated = useCallback(() => {
+    setContentVersion((v) => v + 1)
+  }, [])
+
+  useEffect(() => {
+    chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
 
   if (loading) {
     return (
@@ -47,249 +91,455 @@ function TopicSession() {
     )
   }
 
+  const modes = [
+    { id: 'read', label: 'Read', icon: BookOpen },
+    { id: 'learn', label: 'Learn', icon: MessageCircle },
+    { id: 'quiz', label: 'Questions', icon: HelpCircle },
+  ]
+
   return (
-    <div>
-      <div className="mb-4">
+    <div className="flex flex-col" style={{ minHeight: 'calc(100vh - 72px)' }}>
+      <div className="mb-4 px-4 lg:px-0">
         <p className="font-mono text-xs text-walnut/50">
           {notebook?.title}
         </p>
       </div>
 
-      <NotebookSpread
-        marginRail={<MarginRail topicId={topicId} />}
-      >
+      <div className="flex-1 min-h-0 flex flex-col px-4 lg:px-0">
         <AnimatePresence mode="wait">
           {mode === 'read' && (
-            <motion.div
-              key="read"
-              {...pageTurn}
-              className="max-w-[680px]"
-            >
-              <ReadMode content={topic.content} />
+            <motion.div key="read" {...pageTurn} className="flex-1 min-h-0">
+              <ReadMode topicId={topicId} contentVersion={contentVersion} />
             </motion.div>
           )}
           {mode === 'learn' && (
-            <motion.div
-              key="learn"
-              {...pageTurn}
-              className="max-w-[680px]"
-            >
-              <LearnMode topic={topic} />
+            <motion.div key="learn" {...pageTurn} className="flex-1 min-h-0 flex flex-col">
+              <LearnMode
+                messages={chatMessages}
+                sending={chatSending}
+                messagesEndRef={chatMessagesEndRef}
+              />
             </motion.div>
           )}
           {mode === 'quiz' && (
-            <motion.div
-              key="quiz"
-              {...pageTurn}
-              className="max-w-[680px]"
-            >
-              <QuizMode questions={topic.questions} />
+            <motion.div key="quiz" {...pageTurn} className="flex-1 min-h-0">
+              <QuizMode topicId={topicId} topicTitle={topic.title} />
             </motion.div>
           )}
         </AnimatePresence>
-      </NotebookSpread>
+      </div>
 
-      <div className="mt-8 flex justify-center">
-        <div className="inline-flex bg-paper-dark/50 border border-walnut/15 rounded-[3px] p-1">
-          {[
-            { id: 'read', label: 'Read', icon: BookOpen },
-            { id: 'learn', label: 'Learn', icon: MessageCircle },
-            { id: 'quiz', label: 'Questions', icon: HelpCircle },
-          ].map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setMode(id)}
-              className={cn(
-                'flex items-center gap-1.5 px-4 py-2 text-sm font-body rounded-[2px] transition-colors',
-                mode === id
-                  ? 'bg-paper text-pine shadow-hard border border-walnut/10'
-                  : 'text-walnut hover:text-ink'
-              )}
-            >
-              <Icon size={14} />
-              {label}
-            </button>
-          ))}
+      <div
+        className="sticky bottom-0 shrink-0 border-t border-walnut/15 bg-paper pt-3 pb-4 px-4 lg:px-0 -mx-6 lg:-mx-10 -mb-6 lg:-mb-10"
+      >
+        <div className="flex justify-center mb-3">
+          <div className="inline-flex bg-paper-dark/50 border border-walnut/15 rounded-[3px] p-1">
+            {modes.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setMode(id)}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-2 text-sm font-body rounded-[2px] transition-colors',
+                  mode === id
+                    ? 'bg-paper text-pine shadow-hard border border-walnut/10'
+                    : 'text-walnut hover:text-ink'
+                )}
+              >
+                <Icon size={14} />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {mode === 'learn' && (
+          <div className="max-w-[680px] mx-auto">
+            <LearnInput
+              topic={topic}
+              messages={chatMessages}
+              setMessages={setChatMessages}
+              sending={chatSending}
+              setSending={setChatSending}
+              onContentUpdated={handleContentUpdated}
+            />
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-function ReadMode({ content }) {
-  const paragraphs = content.split('\n\n').filter(Boolean)
+function ReadMode({ topicId, contentVersion }) {
+  const [content, setContent] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    api.fetchTopicContent(topicId).then((data) => {
+      if (!cancelled) {
+        setContent(data?.content || '')
+        setLoading(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [topicId, contentVersion])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 size={20} className="animate-spin text-walnut/40" />
+      </div>
+    )
+  }
+
+  if (!content || !content.trim()) {
+    return (
+      <div className="text-center py-16">
+        <FileText size={40} className="mx-auto text-walnut/30 mb-4" />
+        <p className="font-display text-xl text-ink/60">No content yet</p>
+        <p className="text-walnut/60 text-sm mt-2">
+          Start a conversation in Learn mode to build your notes for this topic.
+        </p>
+      </div>
+    )
+  }
 
   return (
-    <article className="prose prose-ink max-w-none">
-      {paragraphs.map((p, i) => {
-        if (p.startsWith('# ')) {
-          return (
-            <motion.h1
-              key={i}
-              {...inkReveal}
-              className="font-display text-2xl font-medium text-ink mb-4"
-            >
-              {p.replace(/^# /, '')}
-            </motion.h1>
-          )
-        }
-        if (p.startsWith('## ')) {
-          return (
-            <motion.h2
-              key={i}
-              {...inkReveal}
-              className="font-display text-xl font-medium text-ink mt-8 mb-3"
-            >
-              {p.replace(/^## /, '')}
-            </motion.h2>
-          )
-        }
-        if (p.startsWith('**') && p.endsWith('**')) {
-          return (
-            <p key={i} className="font-body text-base text-ink font-medium my-2">
-              {p.replace(/\*\*/g, '')}
-            </p>
-          )
-        }
-        if (p.startsWith('- ')) {
-          const items = p.split('\n').filter(Boolean)
-          return (
-            <ul key={i} className="space-y-1 my-3 ml-4">
-              {items.map((item, j) => (
-                <li key={j} className="text-base text-ink/80 list-disc">
-                  {item.replace(/^- /, '').replace(/\*\*/g, '')}
-                </li>
-              ))}
-            </ul>
-          )
-        }
-        if (p.startsWith('> ')) {
-          return (
-            <blockquote
-              key={i}
-              className="border-l-2 border-walnut/30 pl-4 my-4 text-ink/70 italic"
-            >
-              {p.replace(/^> /, '')}
-            </blockquote>
-          )
-        }
-        if (p.startsWith('$$')) {
-          return (
-            <div key={i} className="my-4 py-3 px-4 bg-paper-dark/30 rounded-[2px] font-mono text-sm text-ink/70 text-center">
-              {p.replace(/\$\$/g, '')}
-            </div>
-          )
-        }
-        const isDropCap = i === 0
-        return (
-          <p key={i} className="font-body text-base text-ink/90 my-3 leading-[1.7]">
-            {isDropCap ? (
-              <>
-                <span className="font-display text-3xl font-medium text-pine float-left mr-2 mt-1 leading-none">
-                  {p.charAt(0)}
-                </span>
-                {p.slice(1)}
-              </>
-            ) : (
-              p.replace(/\*\*/g, '').replace(/`([^`]+)`/g, '<code>$1</code>')
-            )}
-          </p>
-        )
-      })}
+    <article className="prose prose-ink max-w-[680px] prose-headings:font-display prose-code:font-mono prose-code:text-claret prose-code:before:content-none prose-code:after:content-none prose-pre:bg-paper-dark prose-pre:text-ink prose-blockquote:border-l-pine prose-blockquote:text-walnut">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+        {content}
+      </ReactMarkdown>
     </article>
   )
 }
 
-function LearnMode({ topic }) {
-  const [messages, setMessages] = useState([
-    {
-      id: '1',
-      role: 'assistant',
-      content: `I can help you understand "${topic.title}". What would you like to know?`,
-    },
-  ])
-  const [input, setInput] = useState('')
-  const [sending, setSending] = useState(false)
+function ExpandableMessage({ children, threshold = 200 }) {
+  const [expanded, setExpanded] = useState(false)
+  const contentRef = useRef(null)
+  const [isLong, setIsLong] = useState(false)
 
-  const handleSend = async () => {
-    if (!input.trim() || sending) return
-    const userMsg = { id: `user_${Date.now()}`, role: 'user', content: input }
-    setMessages((prev) => [...prev, userMsg])
+  useEffect(() => {
+    if (contentRef.current) {
+      setIsLong(contentRef.current.scrollHeight > threshold)
+    }
+  }, [children, threshold])
+
+  return (
+    <div>
+      <div
+        ref={contentRef}
+        className={cn(!expanded && isLong && 'max-h-[120px] overflow-hidden')}
+      >
+        {children}
+      </div>
+      {isLong && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1 mt-2 text-xs text-walnut/60 hover:text-pine transition-colors font-mono"
+        >
+          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function TakeawayCard({ takeaways }) {
+  if (!takeaways || takeaways.length === 0) return null
+
+  return (
+    <div className="mt-3 p-3 bg-paper-dark/30 border border-walnut/10 rounded-[2px]">
+      <div className="flex items-center gap-1.5 mb-2">
+        <Lightbulb size={12} className="text-brass" />
+        <span className="font-mono text-xs text-walnut/50">Key Takeaways</span>
+      </div>
+      <ul className="space-y-1">
+        {takeaways.map((t, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm text-ink/80 font-body">
+            <span className="w-1.5 h-1.5 rounded-full bg-pine/60 mt-1.5 shrink-0" />
+            {t}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function SuggestionChips({ suggestions, onSelect }) {
+  if (!suggestions || suggestions.length === 0) return null
+
+  return (
+    <div className="flex flex-wrap gap-2 mt-3">
+      {suggestions.map((s, i) => (
+        <button
+          key={i}
+          onClick={() => onSelect(s)}
+          className="px-3 py-1.5 text-sm font-body bg-paper-dark/50 border border-walnut/15 rounded-[2px] text-walnut hover:text-ink hover:bg-paper-dark transition-colors cursor-pointer"
+        >
+          {s}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ChatBubble({ message }) {
+  const isUser = message.role === 'user'
+
+  if (isUser) {
+    return (
+      <div className="ml-8">
+        <div className="p-4 rounded-[2px] text-sm bg-pine/10 text-ink">
+          <p className="font-body text-base leading-relaxed">{message.content}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const responseType = message.responseType || 'conversational'
+  const isExplanation = responseType === 'explanation'
+  const hasTakeaways = message.keyTakeaways?.length > 0
+
+  return (
+    <div className="mr-8">
+      <div className="p-4 rounded-[2px] text-sm bg-paper border border-walnut/15">
+        {isExplanation ? (
+          <ExpandableMessage>
+            <div className="prose prose-sm max-w-none prose-headings:font-display prose-code:font-mono prose-code:text-claret prose-code:before:content-none prose-code:after:content-none prose-pre:bg-paper-dark prose-pre:text-ink">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                {message.content}
+              </ReactMarkdown>
+            </div>
+          </ExpandableMessage>
+        ) : (
+          <p className="font-body text-base leading-relaxed text-ink">{message.content}</p>
+        )}
+
+        {hasTakeaways && <TakeawayCard takeaways={message.keyTakeaways} />}
+      </div>
+    </div>
+  )
+}
+
+function LearnMode({ messages, sending, messagesEndRef }) {
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex-1 overflow-y-auto space-y-4 pt-4 pb-4">
+        {messages.map((msg) => (
+          <ChatBubble
+            key={msg.id}
+            message={msg}
+          />
+        ))}
+        {sending && (
+          <div className="mr-8">
+            <div className="bg-paper border border-walnut/15 p-4 rounded-[2px]">
+              <Loader2 size={16} className="animate-spin text-walnut/40" />
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+    </div>
+  )
+}
+
+function LearnInput({ topic, messages, setMessages, sending, setSending, onContentUpdated }) {
+  const [input, setInput] = useState('')
+  const [summarizing, setSummarizing] = useState(false)
+  const [toast, setToast] = useState(null)
+  const messageCountRef = useRef(0)
+  const textareaRef = useRef(null)
+
+  const latestSuggestions = messages.length > 0
+    ? messages[messages.length - 1]
+    : null
+  const showSuggestions = latestSuggestions
+    && latestSuggestions.role === 'assistant'
+    && latestSuggestions.suggestions?.length > 0
+    && !sending
+
+  const showToast = useCallback((msg, type = 'success') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }, [])
+
+  const doSummarize = useCallback(async (currentMessages) => {
+    if (summarizing) return
+    setSummarizing(true)
+    try {
+      await api.summarizeChat(topic.id, currentMessages)
+      showToast('Content updated from chat')
+      onContentUpdated?.()
+    } catch {
+      showToast('Failed to save content', 'error')
+    } finally {
+      setSummarizing(false)
+    }
+  }, [topic.id, summarizing, showToast, onContentUpdated])
+
+  const sendMessage = async (text) => {
+    if (!text.trim() || sending) return
+    const userMsg = { id: `user_${Date.now()}`, role: 'user', content: text }
+    const updatedMessages = [...messages, userMsg]
+    setMessages(updatedMessages)
     setInput('')
     setSending(true)
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
+
     try {
-      const reply = await api.sendChatMessage(topic.id, input)
-      setMessages((prev) => [
-        ...prev,
-        { id: `ai_${Date.now()}`, role: 'assistant', content: reply },
-      ])
+      const historyForApi = updatedMessages.map((m) => ({ role: m.role, content: m.content }))
+      const result = await api.sendChatMessage(topic.id, text, historyForApi)
+      const assistantMsg = {
+        id: `ai_${Date.now()}`,
+        role: 'assistant',
+        content: result.reply,
+        responseType: result.responseType,
+        suggestions: result.suggestions,
+        keyTakeaways: result.keyTakeaways,
+      }
+      const finalMessages = [...updatedMessages, assistantMsg]
+      setMessages(finalMessages)
+
+      messageCountRef.current += 1
+      if (messageCountRef.current >= SUMMARIZE_THRESHOLD) {
+        messageCountRef.current = 0
+        doSummarize(finalMessages.map((m) => ({ role: m.role, content: m.content })))
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
-        { id: `ai_${Date.now()}`, role: 'assistant', content: 'Sorry, something went wrong. Please try again.' },
+        { id: `ai_${Date.now()}`, role: 'assistant', content: 'Sorry, something went wrong. Please try again.', responseType: 'conversational', suggestions: [], keyTakeaways: [] },
       ])
     } finally {
       setSending(false)
     }
   }
 
+  const handleSend = () => sendMessage(input)
+
+  const handleSuggestionSelect = (suggestion) => {
+    sendMessage(suggestion)
+  }
+
+  const handleSaveManual = () => {
+    if (messages.length === 0) {
+      showToast('No messages to save', 'error')
+      return
+    }
+    doSummarize(messages.map((m) => ({ role: m.role, content: m.content })))
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  const handleInput = (e) => {
+    setInput(e.target.value)
+    const el = e.target
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 150)}px`
+  }
+
   return (
-    <div className="flex flex-col h-[60vh]">
-      <div className="flex-1 overflow-y-auto space-y-4 mb-4">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
+    <>
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
             className={cn(
-              'p-4 rounded-[2px] text-sm',
-              msg.role === 'user'
-                ? 'bg-pine/10 text-ink ml-8'
-                : 'bg-paper border border-walnut/15 mr-8'
+              'absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2 rounded-[2px] text-sm font-body shadow-hard whitespace-nowrap z-10',
+              toast.type === 'error'
+                ? 'bg-claret/10 text-claret border border-claret/20'
+                : 'bg-pine/10 text-pine border border-pine/20'
             )}
           >
-            <p className="font-body text-base leading-relaxed">{msg.content}</p>
-          </div>
-        ))}
-      </div>
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className="flex gap-2">
-        <input
+      {showSuggestions && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {latestSuggestions.suggestions.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => handleSuggestionSelect(s)}
+              className="px-3 py-1.5 text-sm font-body bg-paper-dark/50 border border-walnut/15 rounded-[2px] text-walnut hover:text-ink hover:bg-paper-dark transition-colors cursor-pointer"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-end gap-2">
+        <textarea
+          ref={textareaRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          onChange={handleInput}
+          onKeyDown={handleKeyDown}
           placeholder={sending ? 'Waiting for response...' : 'Ask about this topic...'}
           disabled={sending}
-          className="flex-1 bg-transparent border-b border-walnut/40 focus:border-pine font-body text-base py-2 outline-none placeholder:text-ink/40 transition-colors disabled:opacity-50"
+          rows={1}
+          className="flex-1 bg-transparent border-b border-walnut/40 focus:border-pine font-body text-base py-2 outline-none placeholder:text-ink/40 transition-colors disabled:opacity-50 resize-none leading-relaxed"
         />
-        <Button onClick={handleSend} size="sm" disabled={sending}>
-          {sending ? '...' : 'Send'}
+        <Button
+          onClick={handleSaveManual}
+          size="sm"
+          variant="ghost"
+          disabled={summarizing || sending || messages.length === 0}
+          title="Save chat to content"
+        >
+          {summarizing ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+        </Button>
+        <Button onClick={handleSend} size="sm" disabled={sending || !input.trim()}>
+          <Send size={14} />
         </Button>
       </div>
-    </div>
+    </>
   )
 }
 
-function QuizMode({ questions }) {
+function QuizMode({ topicId, topicTitle }) {
+  const [questions, setQuestions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
   const [current, setCurrent] = useState(0)
   const [selected, setSelected] = useState(null)
   const [revealed, setRevealed] = useState(false)
   const [score, setScore] = useState(0)
 
-  if (questions.length === 0) {
-    return (
-      <div className="text-center py-16">
-        <HelpCircle size={40} className="mx-auto text-walnut/30 mb-4" />
-        <p className="font-display text-xl text-ink/60">No questions yet</p>
-        <p className="text-walnut/60 text-sm mt-2">
-          Questions will appear here once they're generated.
-        </p>
-      </div>
-    )
-  }
+  const fetchQuiz = useCallback(async () => {
+    setGenerating(true)
+    setLoading(true)
+    try {
+      const data = await api.generateQuiz(topicId)
+      setQuestions(data?.questions || [])
+    } catch {
+      setQuestions([])
+    } finally {
+      setLoading(false)
+      setGenerating(false)
+    }
+  }, [topicId])
 
-  const q = questions[current]
+  useEffect(() => {
+    fetchQuiz()
+  }, [fetchQuiz])
 
   const handleCheck = () => {
-    if (q.type === 'mcq' && selected === q.answer) {
+    if (questions[current]?.type === 'mcq' && selected === questions[current].answer) {
       setScore((s) => s + 1)
     }
     setRevealed(true)
@@ -301,77 +551,121 @@ function QuizMode({ questions }) {
     setRevealed(false)
   }
 
+  const handleRegenerate = () => {
+    setCurrent(0)
+    setSelected(null)
+    setRevealed(false)
+    setScore(0)
+    fetchQuiz()
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <Loader2 size={24} className={cn('text-walnut/40 mb-4', generating && 'animate-spin')} />
+        <p className="font-body text-sm text-walnut/60">
+          {generating ? 'Generating questions...' : 'Loading...'}
+        </p>
+      </div>
+    )
+  }
+
+  if (questions.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <HelpCircle size={40} className="mx-auto text-walnut/30 mb-4" />
+        <p className="font-display text-xl text-ink/60">No questions yet</p>
+        <p className="text-walnut/60 text-sm mt-2 mb-6">
+          Build some content in Learn mode first, then come back for a quiz.
+        </p>
+        <Button onClick={handleRegenerate} size="sm" variant="secondary">
+          Try generating quiz
+        </Button>
+      </div>
+    )
+  }
+
+  const q = questions[current]
+
   return (
-    <div>
+    <div className="max-w-[680px]">
       <div className="flex items-center justify-between mb-6">
         <span className="font-mono text-xs text-walnut/50">
           Question {current + 1} of {questions.length}
         </span>
-        <span className="font-mono text-xs text-pine">
-          Score: {score}/{current + (revealed ? 1 : 0)}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-xs text-pine">
+            Score: {score}/{current + (revealed ? 1 : 0)}
+          </span>
+          <Button onClick={handleRegenerate} size="sm" variant="secondary">
+            New quiz
+          </Button>
+        </div>
       </div>
 
-      <motion.div
-        key={current}
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="mb-8"
-      >
-        <p className="font-body text-lg text-ink mb-6">{q.question}</p>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={current}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          className="mb-8"
+        >
+          <p className="font-body text-lg text-ink mb-6">{q.question}</p>
 
-        {q.type === 'mcq' && (
-          <div className="space-y-2">
-            {q.options.map((opt, i) => (
-              <button
-                key={i}
-                onClick={() => !revealed && setSelected(i)}
-                className={cn(
-                  'w-full text-left p-3 rounded-[2px] border font-body text-base transition-all',
-                  selected === i
-                    ? 'border-pine bg-pine/5'
-                    : 'border-walnut/20 hover:border-walnut/40',
-                  revealed && i === q.answer && 'border-pine bg-pine/10',
-                  revealed && selected === i && i !== q.answer && 'border-claret/40 bg-claret/5'
-                )}
-              >
-                <span className="flex items-center gap-3">
-                  {selected === i ? (
-                    <CheckCircle size={16} className="text-pine shrink-0" />
-                  ) : (
-                    <Circle size={16} className="text-walnut/30 shrink-0" />
+          {q.type === 'mcq' && q.options && (
+            <div className="space-y-2">
+              {q.options.map((opt, i) => (
+                <button
+                  key={i}
+                  onClick={() => !revealed && setSelected(i)}
+                  className={cn(
+                    'w-full text-left p-3 rounded-[2px] border font-body text-base transition-all',
+                    selected === i
+                      ? 'border-pine bg-pine/5'
+                      : 'border-walnut/20 hover:border-walnut/40',
+                    revealed && i === q.answer && 'border-pine bg-pine/10',
+                    revealed && selected === i && i !== q.answer && 'border-claret/40 bg-claret/5'
                   )}
-                  {opt}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+                >
+                  <span className="flex items-center gap-3">
+                    {selected === i ? (
+                      <CheckCircle size={16} className="text-pine shrink-0" />
+                    ) : (
+                      <Circle size={16} className="text-walnut/30 shrink-0" />
+                    )}
+                    {opt}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
-        {q.type === 'open' && (
-          <div className="space-y-3">
-            <textarea
-              placeholder="Write your answer..."
-              className="w-full bg-transparent border border-walnut/20 rounded-[2px] p-3 font-body text-base outline-none focus:border-pine min-h-[100px] resize-none"
-            />
-            {!revealed && (
-              <Button onClick={handleCheck} variant="secondary" size="sm">
-                Check answer
-              </Button>
-            )}
-          </div>
-        )}
+          {q.type === 'open' && (
+            <div className="space-y-3">
+              <textarea
+                placeholder="Write your answer..."
+                className="w-full bg-transparent border border-walnut/20 rounded-[2px] p-3 font-body text-base outline-none focus:border-pine min-h-[100px] resize-none"
+              />
+              {!revealed && (
+                <Button onClick={handleCheck} variant="secondary" size="sm">
+                  Check answer
+                </Button>
+              )}
+            </div>
+          )}
 
-        {revealed && q.type !== 'open' && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-4 p-4 bg-paper-dark/30 border border-walnut/10 rounded-[2px]"
-          >
-            <p className="font-body text-sm text-walnut">{q.answer}</p>
-          </motion.div>
-        )}
-      </motion.div>
+          {revealed && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 p-4 bg-paper-dark/30 border border-walnut/10 rounded-[2px]"
+            >
+              <p className="font-body text-sm text-walnut">{q.answer}</p>
+            </motion.div>
+          )}
+        </motion.div>
+      </AnimatePresence>
 
       <div className="flex justify-between items-center">
         <ProgressDots current={current} total={questions.length} />

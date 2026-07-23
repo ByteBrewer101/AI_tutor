@@ -265,14 +265,65 @@ export async function updateTopicContent(notebookId, topicId, content) {
   return mock.updateTopicContent(notebookId, topicId, content)
 }
 
-export async function sendChatMessage(topicId, message) {
+export async function sendChatMessage(topicId, message, chatHistory = []) {
   try {
     const data = await apiFetch('/chat', {
       method: 'POST',
-      body: JSON.stringify({ topic_id: topicId, message }),
+      body: JSON.stringify({
+        topic_id: topicId,
+        message,
+        chat_history: chatHistory.map((m) => ({ role: m.role, content: m.content })),
+      }),
     })
-    return data.reply
+    return {
+      reply: data.reply,
+      responseType: data.response_type || 'conversational',
+      suggestions: data.suggestions || [],
+      keyTakeaways: data.key_takeaways || [],
+    }
   } catch (err) {
-    return mockFallback('sendChatMessage', err, () => `Echo: ${message}`)
+    return mockFallback('sendChatMessage', err, () => ({
+      reply: `Echo: ${message}`,
+      responseType: 'conversational',
+      suggestions: [`Tell me more about this topic`, `Can you explain that differently?`],
+      keyTakeaways: [],
+    }))
+  }
+}
+
+export async function fetchTopicContent(topicId) {
+  try {
+    const data = await apiFetch(`/topics/${topicId}/content`)
+    return toCamel(data)
+  } catch (err) {
+    return mockFallback('fetchTopicContent', err, () => ({ content: '' }))
+  }
+}
+
+export async function summarizeChat(topicId, chatHistory) {
+  try {
+    const data = await apiFetch(`/topics/${topicId}/summarize`, {
+      method: 'POST',
+      body: JSON.stringify({
+        topic_id: topicId,
+        chat_history: chatHistory.map((m) => ({ role: m.role, content: m.content })),
+      }),
+    })
+    return toCamel(data)
+  } catch (err) {
+    console.warn('[api] summarizeChat failed:', err.message)
+    throw err
+  }
+}
+
+export async function generateQuiz(topicId, numQuestions = 5) {
+  try {
+    const data = await apiFetch(`/topics/${topicId}/quiz`, {
+      method: 'POST',
+      body: JSON.stringify({ num_questions: numQuestions }),
+    })
+    return toCamel(data)
+  } catch (err) {
+    return mockFallback('generateQuiz', err, () => ({ questions: [] }))
   }
 }

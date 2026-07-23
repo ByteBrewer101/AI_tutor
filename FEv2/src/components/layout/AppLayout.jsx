@@ -12,9 +12,11 @@ function AppLayout() {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header onMenuToggle={() => setMobileOpen(true)} />
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1040px] px-6 lg:px-10 py-6">
-            <Outlet />
+        <main className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-[1040px] px-6 lg:px-10 py-6">
+              <Outlet />
+            </div>
           </div>
         </main>
       </div>

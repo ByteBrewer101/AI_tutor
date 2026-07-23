@@ -6,7 +6,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models.message import Message
 from app.models.notebook import MarginNote, Notebook, Progress, Question, Topic
 from app.schemas.notebook import (
     GenerateTopicsRequest,
@@ -20,7 +19,6 @@ from app.schemas.notebook import (
     QuestionResponse,
     QuizRequest,
     QuizResponse,
-    RegenerateContentResponse,
     TopicContentResponse,
     TopicResponse,
 )
@@ -253,44 +251,6 @@ async def update_topic_content(
     return TopicContentResponse(id=topic.id, title=topic.title, content=body.content)
 
 
-@router.post("/topics/{topic_id}/regenerate", response_model=RegenerateContentResponse)
-async def regenerate_topic_content(
-    topic_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(Topic).where(Topic.id == topic_id))
-    topic = result.scalar_one_or_none()
-    if topic is None:
-        raise HTTPException(status_code=404, detail="Topic not found")
-    
-    messages_result = await db.execute(
-        select(Message)
-        .where(Message.topic_id == topic_id)
-        .order_by(Message.created_at)
-    )
-    messages = messages_result.scalars().all()
-    
-    if not messages:
-        raise HTTPException(status_code=400, detail="No chat history to regenerate from")
-    
-    chat_history = [{"role": msg.role, "content": msg.content} for msg in messages]
-    
-    new_content = await ai_service.regenerate_content_from_chat(
-        topic.title, chat_history
-    )
-    
-    file_name = await save_markdown(topic_id, new_content)
-    topic.content_file_path = file_name
-    await db.commit()
-    await db.refresh(topic)
-    
-    return RegenerateContentResponse(
-        topic_id=topic_id,
-        message="Content regenerated successfully from chat history",
-        content=new_content,
-    )
-
-
 # --- Quiz ---
 
 
@@ -306,8 +266,12 @@ async def generate_quiz(
         raise HTTPException(status_code=404, detail="Topic not found")
     
     content = await read_markdown(topic_id)
-    if content is None:
-        raise HTTPException(status_code=404, detail="Topic content not found")
+    if not content or not content.strip():
+        return QuizResponse(
+            topic_id=topic_id,
+            topic_title=topic.title,
+            questions=[],
+        )
     
     questions = await ai_service.generate_quiz(
         topic.title, content, body.num_questions

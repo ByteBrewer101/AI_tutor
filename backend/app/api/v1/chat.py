@@ -1,13 +1,18 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models.message import Message
 from app.models.notebook import Topic
-from app.schemas.chat import ChatRequest, ChatResponse
+from app.schemas.chat import (
+    ChatRequest,
+    ChatResponse,
+    SummarizeRequest,
+    SummarizeResponse,
+)
 from app.services.chat import AI_Service
-from app.services.storage import save_markdown
 
 router = APIRouter()
 ai_service = AI_Service()
@@ -18,31 +23,51 @@ async def chat(
     body: ChatRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    result = await db.execute(select(Topic).where(Topic.id == body.topic_id))
+    topic = result.scalar_one_or_none()
+    if topic is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+
     try:
-        reply = await ai_service.chat_with_topic(body.topic_id, body.message, db)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-    should_regenerate = await ai_service.should_regenerate_content(body.topic_id, db)
-
-    if should_regenerate:
-        result = await db.execute(select(Topic).where(Topic.id == body.topic_id))
-        topic = result.scalar_one_or_none()
-        if topic:
-            messages_result = await db.execute(
-                select(Message)
-                .where(Message.topic_id == body.topic_id)
-                .order_by(Message.created_at)
-            )
-            messages = messages_result.scalars().all()
-            chat_history = [{"role": msg.role, "content": msg.content} for msg in messages]
-            new_content = await ai_service.regenerate_content_from_chat(
-                topic.title, chat_history
-            )
-            await save_markdown(body.topic_id, new_content)
+        result = await ai_service.chat_with_topic(
+            topic_title=topic.title,
+            topic_id=body.topic_id,
+            user_message=body.message,
+            chat_history=body.chat_history,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     return ChatResponse(
         topic_id=body.topic_id,
-        reply=reply,
-        should_regenerate=should_regenerate,
+        reply=result.reply,
+        response_type=result.response_type,
+        suggestions=result.suggestions,
+        key_takeaways=result.key_takeaways,
     )
+
+
+@router.post("/topics/{topic_id}/summarize", response_model=SummarizeResponse)
+async def summarize_chat(
+    topic_id: uuid.UUID,
+    body: SummarizeRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Topic).where(Topic.id == topic_id))
+    topic = result.scalar_one_or_none()
+    if topic is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+
+    if not body.chat_history:
+        raise HTTPException(status_code=400, detail="Chat history is empty")
+
+    try:
+        content = await ai_service.summarize_chat_to_content(
+            topic_title=topic.title,
+            topic_id=topic_id,
+            chat_history=body.chat_history,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return SummarizeResponse(topic_id=topic_id, content=content)

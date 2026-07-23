@@ -54,12 +54,6 @@ class QuizResponse(BaseModel):
     questions: list[QuizQuestion]
 
 
-class RegenerateContentResponse(BaseModel):
-    topic_id: uuid.UUID
-    message: str
-    content: str
-
-
 class TopicAIResponse(BaseModel):
     """Schema the LLM must fill in when generating subtopics."""
     topics: list[str] = Field(
