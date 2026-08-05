@@ -9,6 +9,7 @@ from app.models.notebook import Topic
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
+    ModelConfig,
     SummarizeRequest,
     SummarizeResponse,
 )
@@ -16,6 +17,15 @@ from app.services.chat import AI_Service
 
 router = APIRouter()
 ai_service = AI_Service()
+
+
+@router.post("/models/test")
+async def test_model_connection(body: ModelConfig):
+    try:
+        await ai_service.test_connection(body)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Connection failed: {e}")
+    return {"ok": True, "provider": body.provider, "model": body.model or "default"}
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -34,6 +44,7 @@ async def chat(
             topic_id=body.topic_id,
             user_message=body.message,
             chat_history=body.chat_history,
+            llm_config=body.llm_config,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -66,6 +77,7 @@ async def summarize_chat(
             topic_title=topic.title,
             topic_id=topic_id,
             chat_history=body.chat_history,
+            llm_config=body.llm_config,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.schemas.chat import ModelConfig
+
 
 class NotebookCreate(BaseModel):
     name: str
@@ -46,6 +48,7 @@ class QuizQuestion(BaseModel):
 
 class QuizRequest(BaseModel):
     num_questions: int = 5
+    llm_config: ModelConfig | None = None
 
 
 class QuizResponse(BaseModel):
@@ -120,3 +123,4 @@ class ProgressUpdate(BaseModel):
 
 class GenerateTopicsRequest(BaseModel):
     prompt: str
+    llm_config: ModelConfig | None = None

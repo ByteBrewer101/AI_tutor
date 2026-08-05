@@ -119,24 +119,6 @@
     outline-offset: 2px;
   }
 
-  /* Prose / typography plugin — light theme */
-  :root {
-    --tw-prose-body: var(--color-ink);
-    --tw-prose-headings: var(--color-ink);
-    --tw-prose-lead: var(--color-ink);
-    --tw-prose-bold: var(--color-ink);
-    --tw-prose-counters: var(--color-walnut);
-    --tw-prose-bullets: var(--color-walnut);
-    --tw-prose-hr: var(--color-border);
-    --tw-prose-quotes: var(--color-walnut);
-    --tw-prose-quote-borders: var(--color-pine);
-    --tw-prose-captions: var(--color-walnut);
-    --tw-prose-code: var(--color-claret);
-    --tw-prose-pre-code: var(--color-ink);
-    --tw-prose-pre-bg: var(--color-paper-dark);
-    --tw-prose-th-borders: var(--color-border);
-    --tw-prose-td-borders: var(--color-border);
-  }
 }
 
 @keyframes ink-fill {
@@ -156,7 +138,7 @@
   --color-ink: #E0DCC8;
   --color-pine: #7BA68A;
   --color-claret: #C47070;
-  --color-walnut: #8A8694;
+  --color-walnut: #B8B4C8;
   --color-brass: #C9A855;
 
   --color-background: var(--color-paper);
@@ -174,28 +156,12 @@
   --color-accent: #2A2D45;
   --color-accent-foreground: var(--color-ink);
   --color-destructive: var(--color-claret);
-  --color-border: rgba(138, 134, 148, 0.25);
-  --color-input: rgba(138, 134, 148, 0.4);
+  --color-border: rgba(184, 180, 200, 0.28);
+  --color-input: rgba(184, 180, 200, 0.45);
   --color-ring: var(--color-pine);
 
   --shadow-hard: 2px 3px 0 rgba(0, 0, 0, 0.2);
   --shadow-lifted: 3px 5px 0 rgba(0, 0, 0, 0.25);
-
-  --tw-prose-body: var(--color-ink);
-  --tw-prose-headings: var(--color-ink);
-  --tw-prose-lead: var(--color-ink);
-  --tw-prose-bold: var(--color-ink);
-  --tw-prose-counters: var(--color-walnut);
-  --tw-prose-bullets: var(--color-walnut);
-  --tw-prose-hr: var(--color-border);
-  --tw-prose-quotes: var(--color-walnut);
-  --tw-prose-quote-borders: var(--color-pine);
-  --tw-prose-captions: var(--color-walnut);
-  --tw-prose-code: var(--color-claret);
-  --tw-prose-pre-code: var(--color-ink);
-  --tw-prose-pre-bg: var(--color-paper-dark);
-  --tw-prose-th-borders: var(--color-border);
-  --tw-prose-td-borders: var(--color-border);
 }
 
 .dark body {
@@ -221,6 +187,60 @@
   outline-color: var(--color-pine);
 }
 
+/* Code blocks — neutralize the light `github.css` theme in dark mode */
+.dark code.hljs {
+  background: transparent;
+  color: var(--color-ink);
+}
+
+.dark .hljs-comment,
+.dark .hljs-quote {
+  color: var(--color-walnut);
+}
+
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-literal,
+.dark .hljs-name {
+  color: #9CC7A5;
+}
+
+.dark .hljs-string,
+.dark .hljs-regexp,
+.dark .hljs-addition {
+  color: #E0B86C;
+}
+
+.dark .hljs-title,
+.dark .hljs-section,
+.dark .hljs-attribute {
+  color: #E0DCC8;
+}
+
+.dark .hljs-number,
+.dark .hljs-symbol,
+.dark .hljs-bullet {
+  color: #C9A2A0;
+}
+
+.dark .hljs-built_in,
+.dark .hljs-type,
+.dark .hljs-template-variable {
+  color: #B0ACC0;
+}
+
+.dark .hljs-meta,
+.dark .hljs-tag,
+.dark .hljs-variable {
+  color: #8F8CA0;
+}
+
+/* Low-opacity muted text stays legible in dark mode */
+.dark :is(.text-walnut\/30, .text-walnut\/40, .text-walnut\/50) {
+  color: #CFCCDB;
+  color: color-mix(in srgb, var(--color-walnut) 72%, var(--color-paper));
+}
+
 /* ── Nord theme (cool blue-gray) ──────────────────────────────── */
 .nord {
   --color-paper: #2E3440;
@@ -228,7 +248,7 @@
   --color-ink: #ECEFF4;
   --color-pine: #A3BE8C;
   --color-claret: #BF616A;
-  --color-walnut: #7B88A1;
+  --color-walnut: #BFC6DB;
   --color-brass: #EBCB8B;
 
   --color-background: var(--color-paper);
@@ -246,28 +266,12 @@
   --color-accent: #434C5E;
   --color-accent-foreground: var(--color-ink);
   --color-destructive: var(--color-claret);
-  --color-border: rgba(123, 136, 161, 0.25);
-  --color-input: rgba(123, 136, 161, 0.4);
+  --color-border: rgba(191, 198, 219, 0.28);
+  --color-input: rgba(191, 198, 219, 0.45);
   --color-ring: var(--color-pine);
 
   --shadow-hard: 2px 3px 0 rgba(0, 0, 0, 0.2);
   --shadow-lifted: 3px 5px 0 rgba(0, 0, 0, 0.25);
-
-  --tw-prose-body: var(--color-ink);
-  --tw-prose-headings: var(--color-ink);
-  --tw-prose-lead: var(--color-ink);
-  --tw-prose-bold: var(--color-ink);
-  --tw-prose-counters: var(--color-walnut);
-  --tw-prose-bullets: var(--color-walnut);
-  --tw-prose-hr: var(--color-border);
-  --tw-prose-quotes: var(--color-walnut);
-  --tw-prose-quote-borders: var(--color-pine);
-  --tw-prose-captions: var(--color-walnut);
-  --tw-prose-code: var(--color-claret);
-  --tw-prose-pre-code: var(--color-ink);
-  --tw-prose-pre-bg: var(--color-paper-dark);
-  --tw-prose-th-borders: var(--color-border);
-  --tw-prose-td-borders: var(--color-border);
 }
 
 .nord body {
@@ -291,4 +295,82 @@
 
 .nord :focus-visible {
   outline-color: var(--color-pine);
+}
+
+/* Low-opacity muted text stays legible in nord mode */
+.nord :is(.text-walnut\/30, .text-walnut\/40, .text-walnut\/50) {
+  color: #D3D7E8;
+  color: color-mix(in srgb, var(--color-walnut) 72%, var(--color-paper));
+}
+
+/* Code blocks — neutralize the light `github.css` theme in nord mode */
+.nord code.hljs {
+  background: transparent;
+  color: var(--color-ink);
+}
+
+.nord .hljs-comment,
+.nord .hljs-quote {
+  color: var(--color-walnut);
+}
+
+.nord .hljs-keyword,
+.nord .hljs-selector-tag,
+.nord .hljs-literal,
+.nord .hljs-name {
+  color: #A3BE8C;
+}
+
+.nord .hljs-string,
+.nord .hljs-regexp,
+.nord .hljs-addition {
+  color: #EBCB8B;
+}
+
+.nord .hljs-title,
+.nord .hljs-section,
+.nord .hljs-attribute {
+  color: #ECEFF4;
+}
+
+.nord .hljs-number,
+.nord .hljs-symbol,
+.nord .hljs-bullet {
+  color: #D8A3A3;
+}
+
+.nord .hljs-built_in,
+.nord .hljs-type,
+.nord .hljs-template-variable {
+  color: #BFC6DB;
+}
+
+.nord .hljs-meta,
+.nord .hljs-tag,
+.nord .hljs-variable {
+  color: #9AA3B8;
+}
+
+/* Prose content — keep text legible in dark themes.
+   `.prose` re-declares every `--tw-prose-*` var on itself with its own
+   dark-slate defaults, so overrides on `html` never apply. Override at
+   equal/higher scope instead. */
+.dark .prose,
+.nord .prose {
+  --tw-prose-body: #ffffff;
+  --tw-prose-headings: #ffffff;
+  --tw-prose-lead: #ffffff;
+  --tw-prose-bold: #ffffff;
+  --tw-prose-links: var(--color-pine);
+  --tw-prose-counters: var(--color-walnut);
+  --tw-prose-bullets: var(--color-walnut);
+  --tw-prose-hr: var(--color-border);
+  --tw-prose-quotes: var(--color-walnut);
+  --tw-prose-quote-borders: var(--color-pine);
+  --tw-prose-captions: var(--color-walnut);
+  --tw-prose-code: var(--color-claret);
+  --tw-prose-pre-code: #ffffff;
+  --tw-prose-pre-bg: var(--color-paper-dark);
+  --tw-prose-th-borders: var(--color-border);
+  --tw-prose-td-borders: var(--color-border);
 }

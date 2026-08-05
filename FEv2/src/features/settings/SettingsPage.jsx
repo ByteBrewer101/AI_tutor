@@ -1,7 +1,11 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { InkInput } from '@/components/ui/input'
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from '@/components/ui/select'
 import { useTheme } from '@/lib/useTheme'
+import { PROVIDERS, loadModelConfig, saveModelConfig } from '@/lib/modelConfig'
+import { testModelConnection } from '@/lib/api'
 
 const themeOptions = [
   { id: 'light', label: 'Light', description: 'Warm parchment', swatch: ['#F1EAD9', '#2A241C'] },
@@ -14,6 +18,38 @@ function SettingsPage() {
   const [motionEnabled, setMotionEnabled] = useState(true)
   const { theme, isSystem, setTheme, setSystemPreference } = useTheme()
 
+  const [model, setModel] = useState(() => loadModelConfig())
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+
+  const providerInfo = PROVIDERS[model.provider] || PROVIDERS.ollama
+
+  const updateModel = (patch) => {
+    setModel((m) => ({ ...m, ...patch }))
+    setSaved(false)
+    setTestResult(null)
+  }
+
+  const handleSave = () => {
+    saveModelConfig(model)
+    setSaved(true)
+  }
+
+  const handleTest = async () => {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const res = await testModelConnection(model)
+      setTestResult({ ok: true, message: `Connected via ${res.model}` })
+    } catch (err) {
+      setTestResult({ ok: false, message: err.message })
+    } finally {
+      setTesting(false)
+    }
+  }
+
   return (
     <div>
       <h2 className="font-display text-2xl font-medium text-ink mb-8">
@@ -21,6 +57,116 @@ function SettingsPage() {
       </h2>
 
       <div className="space-y-6 max-w-lg">
+        <Card seed={0}>
+          <CardHeader>
+            <CardTitle>AI Model</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm text-walnut font-body block mb-1.5">
+                Provider
+              </label>
+              <Select
+                value={model.provider}
+                onValueChange={(value) =>
+                  updateModel({
+                    provider: value,
+                    model: PROVIDERS[value].defaultModel,
+                    baseUrl: PROVIDERS[value].defaultBaseUrl,
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectPopup>
+                  {Object.values(PROVIDERS).map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectPopup>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm text-walnut font-body block mb-1.5">
+                Model
+              </label>
+              <InkInput
+                value={model.model}
+                onChange={(e) => updateModel({ model: e.target.value })}
+                placeholder={providerInfo.defaultModel}
+              />
+            </div>
+
+            {model.provider === 'ollama' && (
+              <div>
+                <label className="text-sm text-walnut font-body block mb-1.5">
+                  Base URL
+                </label>
+                <InkInput
+                  value={model.baseUrl}
+                  onChange={(e) => updateModel({ baseUrl: e.target.value })}
+                  placeholder={PROVIDERS.ollama.defaultBaseUrl}
+                />
+              </div>
+            )}
+
+            {model.provider === 'gemini' && (
+              <div>
+                <label className="text-sm text-walnut font-body block mb-1.5">
+                  API Key
+                </label>
+                <div className="flex items-center gap-2">
+                  <InkInput
+                    type={showApiKey ? 'text' : 'password'}
+                    value={model.apiKey}
+                    onChange={(e) => updateModel({ apiKey: e.target.value })}
+                    placeholder="AIza…"
+                    autoComplete="off"
+                  />
+                  <button
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="text-xs font-mono text-walnut/50 hover:text-pine whitespace-nowrap"
+                  >
+                    {showApiKey ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                <p className="text-xs text-walnut/50 font-mono mt-1">
+                  Stored only in your browser. Never sent to or saved on the server.
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 pt-1">
+              <Button size="sm" onClick={handleSave}>
+                Save
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleTest}
+                disabled={testing || (model.provider === 'gemini' && !model.apiKey)}
+              >
+                {testing ? 'Testing…' : 'Test connection'}
+              </Button>
+              {saved && <span className="text-xs text-pine font-mono">Saved</span>}
+            </div>
+
+            {testResult && (
+              <p
+                className={`text-xs font-mono ${
+                  testResult.ok ? 'text-pine' : 'text-claret'
+                }`}
+              >
+                {testResult.ok ? '✓ ' : '✗ '}
+                {testResult.message}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
         <Card seed={1}>
           <CardHeader>
             <CardTitle>Reading</CardTitle>

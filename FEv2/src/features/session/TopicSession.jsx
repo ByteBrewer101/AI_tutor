@@ -16,6 +16,8 @@ import {
   FileText,
   Send,
   Lightbulb,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Stamp } from '@/components/ui/stamp'
@@ -24,6 +26,7 @@ import { cn } from '@/lib/utils'
 import * as api from '@/lib/api'
 
 const SUMMARIZE_THRESHOLD = 5
+const RAIL_COLLAPSED_KEY = 'marginalia-chat-sidebar-collapsed'
 
 function TopicSession() {
   const { notebookId, topicId } = useParams()
@@ -35,7 +38,14 @@ function TopicSession() {
 
   const [chatMessages, setChatMessages] = useState([])
   const [chatSending, setChatSending] = useState(false)
+  const [chatSummarizing, setChatSummarizing] = useState(false)
+  const [chatToast, setChatToast] = useState(null)
+  const [railCollapsed, setRailCollapsed] = useState(
+    () => localStorage.getItem(RAIL_COLLAPSED_KEY) === '1'
+  )
   const chatMessagesEndRef = useRef(null)
+  const msgIdRef = useRef(0)
+  const messageCountRef = useRef(0)
 
   useEffect(() => {
     Promise.all([
@@ -66,9 +76,80 @@ function TopicSession() {
     setContentVersion((v) => v + 1)
   }, [])
 
+  const showToast = useCallback((msg, type = 'success') => {
+    setChatToast({ msg, type })
+    setTimeout(() => setChatToast(null), 3000)
+  }, [])
+
+  const doSummarize = useCallback(async (currentMessages) => {
+    if (chatSummarizing) return
+    setChatSummarizing(true)
+    try {
+      await api.summarizeChat(topicId, currentMessages)
+      showToast('Content updated from chat')
+      handleContentUpdated()
+    } catch {
+      showToast('Failed to save content', 'error')
+    } finally {
+      setChatSummarizing(false)
+    }
+  }, [topicId, chatSummarizing, showToast, handleContentUpdated])
+
+  const sendMessage = async (text) => {
+    if (!text.trim() || chatSending) return
+    const userMsg = { id: `user_${++msgIdRef.current}`, role: 'user', content: text }
+    const updatedMessages = [...chatMessages, userMsg]
+    setChatMessages(updatedMessages)
+    setChatSending(true)
+
+    try {
+      const historyForApi = updatedMessages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        suggestion_hints: m.suggestions?.map((s) => s.text) || [],
+      }))
+      const result = await api.sendChatMessage(topic.id, text, historyForApi)
+      const assistantMsg = {
+        id: `ai_${++msgIdRef.current}`,
+        role: 'assistant',
+        content: result.reply,
+        responseType: result.responseType,
+        suggestions: result.suggestions,
+        keyTakeaways: result.keyTakeaways,
+      }
+      const finalMessages = [...updatedMessages, assistantMsg]
+      setChatMessages(finalMessages)
+
+      messageCountRef.current += 1
+      if (messageCountRef.current >= SUMMARIZE_THRESHOLD) {
+        messageCountRef.current = 0
+        doSummarize(finalMessages.map((m) => ({ role: m.role, content: m.content })))
+      }
+    } catch {
+      setChatMessages((prev) => [
+        ...prev,
+        { id: `ai_${++msgIdRef.current}`, role: 'assistant', content: 'Sorry, something went wrong. Please try again.', responseType: 'conversational', suggestions: [], keyTakeaways: [] },
+      ])
+    } finally {
+      setChatSending(false)
+    }
+  }
+
+  const handleSaveManual = () => {
+    if (chatMessages.length === 0) {
+      showToast('No messages to save', 'error')
+      return
+    }
+    doSummarize(chatMessages.map((m) => ({ role: m.role, content: m.content })))
+  }
+
   useEffect(() => {
     chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
+
+  useEffect(() => {
+    localStorage.setItem(RAIL_COLLAPSED_KEY, railCollapsed ? '1' : '0')
+  }, [railCollapsed])
 
   if (loading) {
     return (
@@ -95,75 +176,180 @@ function TopicSession() {
     { id: 'quiz', label: 'Questions', icon: HelpCircle },
   ]
 
+  const latestAssistant = chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === 'assistant'
+    ? chatMessages[chatMessages.length - 1]
+    : null
+  const suggestions = mode === 'learn' && latestAssistant?.suggestions?.length > 0 && !chatSending
+    ? latestAssistant.suggestions
+    : []
+
   return (
-    <div className="flex flex-col" style={{ minHeight: 'calc(100vh - 72px)' }}>
-      <div className="mb-4 px-4 lg:px-0">
-        <p className="font-mono text-xs text-walnut/50">
-          {notebook?.title}
-        </p>
+    <div className="flex min-h-[calc(100vh-48px)]">
+      <div className="flex-1 min-w-0 flex flex-col px-6 lg:px-10 pt-6">
+        <div className="mx-auto w-full max-w-[680px] flex-1 flex flex-col min-h-0">
+          <div className="mb-4">
+            <p className="font-mono text-xs text-walnut/50">
+              {notebook?.title}
+            </p>
+          </div>
+
+          <div className="flex-1 min-h-0">
+            <AnimatePresence mode="wait">
+              {mode === 'read' && (
+                <motion.div key="read" {...pageTurn} className="min-h-full">
+                  <ReadMode topicId={topicId} contentVersion={contentVersion} />
+                </motion.div>
+              )}
+              {mode === 'learn' && (
+                <motion.div key="learn" {...pageTurn} className="min-h-full flex flex-col">
+                  <LearnMode
+                    messages={chatMessages}
+                    sending={chatSending}
+                    messagesEndRef={chatMessagesEndRef}
+                  />
+                </motion.div>
+              )}
+              {mode === 'quiz' && (
+                <motion.div key="quiz" {...pageTurn} className="min-h-full">
+                  <QuizMode topicId={topicId} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 shrink-0 border-t border-walnut/15 bg-paper pt-3 pb-4 -mx-6 lg:-mx-10">
+          <div className="mx-auto max-w-[680px] px-4 lg:px-0 relative">
+            <div className="flex justify-center mb-3 lg:hidden">
+              <div className="inline-flex bg-paper-dark/50 border border-walnut/15 rounded-[3px] p-1">
+                {modes.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => setMode(id)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-4 py-2 text-sm font-body rounded-[2px] transition-colors',
+                      mode === id
+                        ? 'bg-paper text-pine shadow-hard border border-walnut/10'
+                        : 'text-walnut hover:text-ink'
+                    )}
+                  >
+                    <Icon size={14} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {mode === 'learn' && (
+              <>
+                <AnimatePresence>
+                  {chatToast && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className={cn(
+                        'absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2 rounded-[2px] text-sm font-body shadow-hard whitespace-nowrap z-10',
+                        chatToast.type === 'error'
+                          ? 'bg-claret/10 text-claret border border-claret/20'
+                          : 'bg-pine/10 text-pine border border-pine/20'
+                      )}
+                    >
+                      {chatToast.msg}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <LearnInput
+                  onSend={sendMessage}
+                  onSave={handleSaveManual}
+                  sending={chatSending}
+                  summarizing={chatSummarizing}
+                  canSave={chatMessages.length > 0}
+                />
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col px-4 lg:px-0">
-        <AnimatePresence mode="wait">
-          {mode === 'read' && (
-            <motion.div key="read" {...pageTurn} className="flex-1 min-h-0">
-              <ReadMode topicId={topicId} contentVersion={contentVersion} />
-            </motion.div>
-          )}
-          {mode === 'learn' && (
-            <motion.div key="learn" {...pageTurn} className="flex-1 min-h-0 flex flex-col">
-              <LearnMode
-                messages={chatMessages}
-                sending={chatSending}
-                messagesEndRef={chatMessagesEndRef}
-              />
-            </motion.div>
-          )}
-          {mode === 'quiz' && (
-            <motion.div key="quiz" {...pageTurn} className="flex-1 min-h-0">
-              <QuizMode topicId={topicId} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <StudyRail
+        modes={modes}
+        activeMode={mode}
+        onModeChange={setMode}
+        collapsed={railCollapsed}
+        onToggleCollapse={() => setRailCollapsed((c) => !c)}
+        suggestions={suggestions}
+        onSuggestionClick={sendMessage}
+      />
+    </div>
+  )
+}
+
+function StudyRail({ modes, activeMode, onModeChange, collapsed, onToggleCollapse, suggestions, onSuggestionClick }) {
+  return (
+    <aside
+      className={cn(
+        'hidden lg:flex flex-col shrink-0 border-l border-walnut/15 sticky top-0 h-[calc(100vh-48px)] transition-[width] duration-200 overflow-hidden',
+        collapsed ? 'w-14 px-2' : 'w-64 pl-6 pr-2'
+      )}
+    >
+      <div className={cn('flex items-center h-10 mb-4 shrink-0', collapsed ? 'justify-center' : 'justify-between')}>
+        {!collapsed && (
+          <span className="font-mono text-[10px] uppercase tracking-wider text-walnut/40">
+            Study
+          </span>
+        )}
+        <button
+          onClick={onToggleCollapse}
+          className="text-walnut hover:text-pine transition-colors cursor-pointer"
+          aria-label={collapsed ? 'Expand study sidebar' : 'Collapse study sidebar'}
+        >
+          {collapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
+        </button>
       </div>
 
-      <div
-        className="sticky bottom-0 shrink-0 border-t border-walnut/15 bg-paper pt-3 pb-4 px-4 lg:px-0 -mx-6 lg:-mx-10 -mb-6 lg:-mb-10"
-      >
-        <div className="flex justify-center mb-3">
-          <div className="inline-flex bg-paper-dark/50 border border-walnut/15 rounded-[3px] p-1">
-            {modes.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setMode(id)}
-                className={cn(
-                  'flex items-center gap-1.5 px-4 py-2 text-sm font-body rounded-[2px] transition-colors',
-                  mode === id
-                    ? 'bg-paper text-pine shadow-hard border border-walnut/10'
-                    : 'text-walnut hover:text-ink'
-                )}
-              >
-                <Icon size={14} />
+      <nav className="flex flex-col gap-1 shrink-0 mt-6">
+        {modes.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => onModeChange(id)}
+            title={collapsed ? label : undefined}
+            className={cn(
+              'flex items-center gap-3 h-9 rounded-[3px] transition-colors duration-150 cursor-pointer',
+              collapsed ? 'justify-center px-0' : 'px-3',
+              activeMode === id
+                ? 'bg-pine/10 text-pine'
+                : 'text-walnut hover:text-ink hover:bg-walnut/5'
+            )}
+          >
+            <Icon size={18} className="shrink-0" />
+            {!collapsed && (
+              <span className="font-body text-sm whitespace-nowrap overflow-hidden">
                 {label}
+              </span>
+            )}
+          </button>
+        ))}
+      </nav>
+
+      {!collapsed && suggestions.length > 0 && (
+        <div className="mt-6 pt-5 border-t border-walnut/10 flex-1 min-h-0 overflow-y-auto">
+          <p className="text-xs font-mono text-walnut/40 mb-2">Suggested questions</p>
+          <div className="flex flex-col gap-2">
+            {suggestions.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => onSuggestionClick(s.text)}
+                className="px-3 py-1.5 text-sm font-body bg-paper-dark/50 border border-walnut/15 rounded-[2px] text-walnut hover:text-ink hover:bg-paper-dark transition-colors cursor-pointer text-left"
+              >
+                {s.text}
               </button>
             ))}
           </div>
         </div>
-
-        {mode === 'learn' && (
-          <div className="max-w-[680px] mx-auto">
-            <LearnInput
-              topic={topic}
-              messages={chatMessages}
-              setMessages={setChatMessages}
-              sending={chatSending}
-              setSending={setChatSending}
-              onContentUpdated={handleContentUpdated}
-            />
-          </div>
-        )}
-      </div>
-    </div>
+      )}
+    </aside>
   )
 }
 
@@ -289,94 +475,18 @@ function LearnMode({ messages, sending, messagesEndRef }) {
   )
 }
 
-function LearnInput({ topic, messages, setMessages, sending, setSending, onContentUpdated }) {
+function LearnInput({ onSend, onSave, sending, summarizing, canSave }) {
   const [input, setInput] = useState('')
-  const [summarizing, setSummarizing] = useState(false)
-  const [toast, setToast] = useState(null)
-  const messageCountRef = useRef(0)
   const textareaRef = useRef(null)
-  const msgIdRef = useRef(0)
 
-  const latestSuggestions = messages.length > 0
-    ? messages[messages.length - 1]
-    : null
-  const showSuggestions = latestSuggestions
-    && latestSuggestions.role === 'assistant'
-    && latestSuggestions.suggestions?.length > 0
-    && !sending
-
-  const showToast = useCallback((msg, type = 'success') => {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3000)
-  }, [])
-
-  const doSummarize = useCallback(async (currentMessages) => {
-    if (summarizing) return
-    setSummarizing(true)
-    try {
-      await api.summarizeChat(topic.id, currentMessages)
-      showToast('Content updated from chat')
-      onContentUpdated?.()
-    } catch {
-      showToast('Failed to save content', 'error')
-    } finally {
-      setSummarizing(false)
-    }
-  }, [topic.id, summarizing, showToast, onContentUpdated])
-
-  const sendMessage = async (text) => {
+  const handleSend = () => {
+    const text = input
     if (!text.trim() || sending) return
-    const userMsg = { id: `user_${++msgIdRef.current}`, role: 'user', content: text }
-    const updatedMessages = [...messages, userMsg]
-    setMessages(updatedMessages)
     setInput('')
-    setSending(true)
-
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
-
-    try {
-      const historyForApi = updatedMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        suggestion_hints: m.suggestions?.map((s) => s.text) || [],
-      }))
-      const result = await api.sendChatMessage(topic.id, text, historyForApi)
-      const assistantMsg = {
-        id: `ai_${++msgIdRef.current}`,
-        role: 'assistant',
-        content: result.reply,
-        responseType: result.responseType,
-        suggestions: result.suggestions,
-        keyTakeaways: result.keyTakeaways,
-      }
-      const finalMessages = [...updatedMessages, assistantMsg]
-      setMessages(finalMessages)
-
-      messageCountRef.current += 1
-      if (messageCountRef.current >= SUMMARIZE_THRESHOLD) {
-        messageCountRef.current = 0
-        doSummarize(finalMessages.map((m) => ({ role: m.role, content: m.content })))
-      }
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { id: `ai_${++msgIdRef.current}`, role: 'assistant', content: 'Sorry, something went wrong. Please try again.', responseType: 'conversational', suggestions: [], keyTakeaways: [] },
-      ])
-    } finally {
-      setSending(false)
-    }
-  }
-
-  const handleSend = () => sendMessage(input)
-
-  const handleSaveManual = () => {
-    if (messages.length === 0) {
-      showToast('No messages to save', 'error')
-      return
-    }
-    doSummarize(messages.map((m) => ({ role: m.role, content: m.content })))
+    onSend(text)
   }
 
   const handleKeyDown = (e) => {
@@ -394,67 +504,30 @@ function LearnInput({ topic, messages, setMessages, sending, setSending, onConte
   }
 
   return (
-    <>
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className={cn(
-              'absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2 rounded-[2px] text-sm font-body shadow-hard whitespace-nowrap z-10',
-              toast.type === 'error'
-                ? 'bg-claret/10 text-claret border border-claret/20'
-                : 'bg-pine/10 text-pine border border-pine/20'
-            )}
-          >
-            {toast.msg}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {showSuggestions && (
-        <div className="mb-3">
-          <p className="text-xs font-mono text-walnut/40 mb-2">Suggested questions</p>
-          <div className="flex flex-wrap gap-2">
-            {latestSuggestions.suggestions.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => sendMessage(s.text)}
-                className="px-3 py-1.5 text-sm font-body bg-paper-dark/50 border border-walnut/15 rounded-full text-walnut hover:text-ink hover:bg-paper-dark transition-colors cursor-pointer"
-              >
-                {s.text}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="flex items-end gap-2">
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={handleInput}
-          onKeyDown={handleKeyDown}
-          placeholder={sending ? 'Waiting for response...' : 'Ask about this topic...'}
-          disabled={sending}
-          rows={1}
-          className="flex-1 bg-transparent border-b border-walnut/40 focus:border-pine font-body text-base py-2 outline-none placeholder:text-ink/40 transition-colors disabled:opacity-50 resize-none leading-relaxed"
-        />
-        <Button
-          onClick={handleSaveManual}
-          size="sm"
-          variant="ghost"
-          disabled={summarizing || sending || messages.length === 0}
-          title="Save chat to content"
-        >
-          {summarizing ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-        </Button>
-        <Button onClick={handleSend} size="sm" disabled={sending || !input.trim()}>
-          <Send size={14} />
-        </Button>
-      </div>
-    </>
+    <div className="flex items-end gap-2">
+      <textarea
+        ref={textareaRef}
+        value={input}
+        onChange={handleInput}
+        onKeyDown={handleKeyDown}
+        placeholder={sending ? 'Waiting for response...' : 'Ask about this topic...'}
+        disabled={sending}
+        rows={1}
+        className="flex-1 bg-transparent border-b border-walnut/40 focus:border-pine font-body text-base py-2 outline-none placeholder:text-ink/40 transition-colors disabled:opacity-50 resize-none leading-relaxed"
+      />
+      <Button
+        onClick={onSave}
+        size="sm"
+        variant="ghost"
+        disabled={summarizing || sending || !canSave}
+        title="Save chat to content"
+      >
+        {summarizing ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+      </Button>
+      <Button onClick={handleSend} size="sm" disabled={sending || !input.trim()}>
+        <Send size={14} />
+      </Button>
+    </div>
   )
 }
 

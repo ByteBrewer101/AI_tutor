@@ -3,6 +3,25 @@ import uuid
 from pydantic import BaseModel, Field
 
 
+class ModelConfig(BaseModel):
+    provider: str = Field(
+        default="ollama",
+        description="Provider to use: 'ollama' (local) or 'gemini' (Google Gemini).",
+    )
+    model: str | None = Field(
+        default=None,
+        description="Model name. Falls back to server default when unset.",
+    )
+    api_key: str | None = Field(
+        default=None,
+        description="API key for cloud providers. Never persisted server-side.",
+    )
+    base_url: str | None = Field(
+        default=None,
+        description="Base URL for self-hosted providers like Ollama.",
+    )
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -16,6 +35,7 @@ class ChatRequest(BaseModel):
     topic_id: uuid.UUID
     message: str
     chat_history: list[ChatMessage] = []
+    llm_config: ModelConfig | None = None
 
 
 class SuggestionItem(BaseModel):
@@ -53,6 +73,7 @@ class ChatResponse(BaseModel):
 class SummarizeRequest(BaseModel):
     topic_id: uuid.UUID
     chat_history: list[ChatMessage]
+    llm_config: ModelConfig | None = None
 
 
 class SummarizeResponse(BaseModel):

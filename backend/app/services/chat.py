@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.notebook import Notebook, Topic
 from app.schemas.notebook import TopicAIResponse, QuizQuestion, QuizQuestionsResponse
-from app.schemas.chat import ChatMessage, ChatReply, SuggestionItem
+from app.schemas.chat import ChatMessage, ChatReply, ModelConfig, SuggestionItem
 from app.services.storage import save_markdown, read_markdown
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_ollama import ChatOllama
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
@@ -15,18 +16,33 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 class AI_Service:
-    def __init__(self) -> None:
-        self.llm = ChatOllama(
-            model=settings.OLLAMA_MODEL,
-            base_url=settings.OLLAMA_BASE_URL,
+    @staticmethod
+    def _build_llm(llm_config: ModelConfig | None = None) -> BaseChatModel:
+        cfg = llm_config or ModelConfig()
+
+        if cfg.provider == "gemini":
+            from langchain_google_genai import ChatGoogleGenerativeAI
+
+            if not cfg.api_key:
+                raise ValueError("Google Gemini requires an API key")
+            return ChatGoogleGenerativeAI(
+                model=cfg.model or "gemini-2.5-flash",
+                api_key=cfg.api_key,
+                temperature=0.7,
+            )
+
+        return ChatOllama(
+            model=cfg.model or settings.OLLAMA_MODEL,
+            base_url=cfg.base_url or settings.OLLAMA_BASE_URL,
             temperature=0.7,
         )
-        self.structured_llm = self.llm.with_structured_output(TopicAIResponse)
-        self.chat_structured_llm = self.llm.with_structured_output(ChatReply)
-        self.quiz_structured_llm = self.llm.with_structured_output(QuizQuestionsResponse)
 
     async def generate_topics(
-        self, prompt: str, notebook_id: uuid.UUID, db: AsyncSession
+        self,
+        prompt: str,
+        notebook_id: uuid.UUID,
+        db: AsyncSession,
+        llm_config: ModelConfig | None = None,
     ) -> list[Topic]:
         result = await db.execute(select(Notebook).where(Notebook.id == notebook_id))
         notebook = result.scalar_one_or_none()
@@ -44,7 +60,10 @@ class AI_Service:
             "- Each subtopic = one distinct, teachable unit"
         )
 
-        ai_response: TopicAIResponse = await self.structured_llm.ainvoke(
+        llm = self._build_llm(llm_config)
+        structured_llm = llm.with_structured_output(TopicAIResponse)
+
+        ai_response: TopicAIResponse = await structured_llm.ainvoke(
             [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
@@ -79,6 +98,7 @@ class AI_Service:
         topic_id: uuid.UUID,
         user_message: str,
         chat_history: list[ChatMessage],
+        llm_config: ModelConfig | None = None,
     ) -> ChatReply:
         content = await read_markdown(topic_id)
         content_context = (
@@ -116,7 +136,9 @@ class AI_Service:
                 })
         messages.append({"role": "user", "content": user_message})
 
-        result: ChatReply = await self.chat_structured_llm.ainvoke(messages)
+        llm = self._build_llm(llm_config)
+        chat_structured_llm = llm.with_structured_output(ChatReply)
+        result: ChatReply = await chat_structured_llm.ainvoke(messages)
 
         if not result.suggestions:
             result.suggestions = [
@@ -132,6 +154,7 @@ class AI_Service:
         topic_title: str,
         topic_id: uuid.UUID,
         chat_history: list[ChatMessage],
+        llm_config: ModelConfig | None = None,
     ) -> str:
         existing_content = await read_markdown(topic_id) or ""
 
@@ -186,8 +209,9 @@ class AI_Service:
             "Summaries:\n{context}\n\nFinal document:"
         )
 
-        map_chain = map_prompt | self.llm
-        reduce_chain = reduce_prompt | self.llm
+        llm = self._build_llm(llm_config)
+        map_chain = map_prompt | llm
+        reduce_chain = reduce_prompt | llm
 
         async def _mapReduce(docs: list[Document]) -> str:
             mapped = []
@@ -209,7 +233,11 @@ class AI_Service:
         return summary
 
     async def generate_quiz(
-        self, topic_title: str, markdown_content: str, num_questions: int = 5
+        self,
+        topic_title: str,
+        markdown_content: str,
+        num_questions: int = 5,
+        llm_config: ModelConfig | None = None,
     ) -> list[QuizQuestion]:
         system_prompt = (
             "You are an expert quiz creator. Generate a quiz from the provided material.\n"
@@ -219,7 +247,10 @@ class AI_Service:
             f"- Generate exactly {num_questions} questions"
         )
 
-        result: QuizQuestionsResponse = await self.quiz_structured_llm.ainvoke(
+        llm = self._build_llm(llm_config)
+        quiz_structured_llm = llm.with_structured_output(QuizQuestionsResponse)
+
+        result: QuizQuestionsResponse = await quiz_structured_llm.ainvoke(
             [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Topic: {topic_title}\n\nMaterial:\n{markdown_content}"},
@@ -227,3 +258,8 @@ class AI_Service:
         )
 
         return result.questions
+
+    async def test_connection(self, llm_config: ModelConfig | None = None) -> str:
+        llm = self._build_llm(llm_config)
+        response = await llm.ainvoke("Reply with exactly: ok")
+        return response.content

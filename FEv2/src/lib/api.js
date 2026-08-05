@@ -1,4 +1,5 @@
 import * as mock from './mockData'
+import { toApiConfig, withModelConfig } from './modelConfig'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -202,7 +203,7 @@ export async function createTopic(notebookId, title, content = '') {
   try {
     const raw = await apiFetch(`/notebooks/${notebookId}/topics/generate`, {
       method: 'POST',
-      body: JSON.stringify({ prompt: title }),
+      body: JSON.stringify(withModelConfig({ prompt: title })),
     })
     const topics = toCamel(Array.isArray(raw) ? raw : [raw])
     return topics[0] || { id: 'fallback', title, content, notebookId }
@@ -215,7 +216,7 @@ export async function generateTopics(notebookId, prompt) {
   try {
     const raw = await apiFetch(`/notebooks/${notebookId}/topics/generate`, {
       method: 'POST',
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify(withModelConfig({ prompt })),
     })
     const topicsRaw = Array.isArray(raw) ? raw : [raw]
     const topics = await Promise.all(
@@ -274,11 +275,11 @@ export async function updateTopicContent(notebookId, topicId, content) {
 
 export async function sendChatMessage(topicId, message, chatHistory = []) {
   try {
-    const body = {
+    const body = withModelConfig({
       topic_id: topicId,
       message,
       chat_history: chatHistory.map((m) => ({ role: m.role, content: m.content })),
-    }
+    })
 
     const data = await apiFetch('/chat', {
       method: 'POST',
@@ -316,10 +317,12 @@ export async function summarizeChat(topicId, chatHistory) {
   try {
     const data = await apiFetch(`/topics/${topicId}/summarize`, {
       method: 'POST',
-      body: JSON.stringify({
-        topic_id: topicId,
-        chat_history: chatHistory.map((m) => ({ role: m.role, content: m.content })),
-      }),
+      body: JSON.stringify(
+        withModelConfig({
+          topic_id: topicId,
+          chat_history: chatHistory.map((m) => ({ role: m.role, content: m.content })),
+        })
+      ),
     })
     return toCamel(data)
   } catch (err) {
@@ -332,10 +335,17 @@ export async function generateQuiz(topicId, numQuestions = 5) {
   try {
     const data = await apiFetch(`/topics/${topicId}/quiz`, {
       method: 'POST',
-      body: JSON.stringify({ num_questions: numQuestions }),
+      body: JSON.stringify(withModelConfig({ num_questions: numQuestions })),
     })
     return toCamel(data)
   } catch (err) {
     return mockFallback('generateQuiz', err, () => ({ questions: [] }))
   }
+}
+
+export async function testModelConnection(config) {
+  return apiFetch('/models/test', {
+    method: 'POST',
+    body: JSON.stringify(toApiConfig(config)),
+  })
 }

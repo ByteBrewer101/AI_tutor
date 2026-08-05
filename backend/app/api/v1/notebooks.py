@@ -89,7 +89,9 @@ async def generate_topics(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        topics = await ai_service.generate_topics(body.prompt, notebook_id, db)
+        topics = await ai_service.generate_topics(
+            body.prompt, notebook_id, db, llm_config=body.llm_config
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return topics
@@ -274,7 +276,10 @@ async def generate_quiz(
         )
     
     questions = await ai_service.generate_quiz(
-        topic.title, content, body.num_questions
+        topic.title,
+        content,
+        body.num_questions,
+        llm_config=body.llm_config,
     )
     
     return QuizResponse(
