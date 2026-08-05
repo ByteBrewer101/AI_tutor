@@ -1,6 +1,8 @@
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,6 +58,29 @@ async def chat(
         suggestions=[{"text": s.text} for s in result.suggestions],
         key_takeaways=result.key_takeaways,
     )
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    body: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Topic).where(Topic.id == body.topic_id))
+    topic = result.scalar_one_or_none()
+    if topic is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+
+    async def event_stream():
+        async for event in ai_service.chat_with_topic_stream(
+            topic_title=topic.title,
+            topic_id=body.topic_id,
+            user_message=body.message,
+            chat_history=body.chat_history,
+            llm_config=body.llm_config,
+        ):
+            yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.post("/topics/{topic_id}/summarize", response_model=SummarizeResponse)

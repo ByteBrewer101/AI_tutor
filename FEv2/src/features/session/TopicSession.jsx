@@ -98,9 +98,28 @@ function TopicSession() {
   const sendMessage = async (text) => {
     if (!text.trim() || chatSending) return
     const userMsg = { id: `user_${++msgIdRef.current}`, role: 'user', content: text }
+    const assistantId = `ai_${++msgIdRef.current}`
+    const assistantPlaceholder = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      streaming: true,
+      responseType: 'conversational',
+      suggestions: [],
+      keyTakeaways: [],
+    }
     const updatedMessages = [...chatMessages, userMsg]
-    setChatMessages(updatedMessages)
+    const withPlaceholder = [...updatedMessages, assistantPlaceholder]
+    setChatMessages(withPlaceholder)
     setChatSending(true)
+
+    const patchAssistant = (patch) => {
+      setChatMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId ? { ...m, ...(typeof patch === 'function' ? patch(m) : patch) } : m
+        )
+      )
+    }
 
     try {
       const historyForApi = updatedMessages.map((m) => ({
@@ -108,17 +127,31 @@ function TopicSession() {
         content: m.content,
         suggestion_hints: m.suggestions?.map((s) => s.text) || [],
       }))
-      const result = await api.sendChatMessage(topic.id, text, historyForApi)
-      const assistantMsg = {
-        id: `ai_${++msgIdRef.current}`,
-        role: 'assistant',
+      const result = await api.sendChatMessageStream(topic.id, text, historyForApi, {
+        onChunk: (delta) => {
+          patchAssistant((m) => ({ content: (m.content || '') + delta }))
+        },
+      })
+
+      const finalMessages = withPlaceholder.map((m) =>
+        m.id === assistantId
+          ? {
+              ...m,
+              streaming: false,
+              content: result.reply,
+              responseType: result.responseType,
+              suggestions: result.suggestions,
+              keyTakeaways: result.keyTakeaways,
+            }
+          : m
+      )
+      patchAssistant({
+        streaming: false,
         content: result.reply,
         responseType: result.responseType,
         suggestions: result.suggestions,
         keyTakeaways: result.keyTakeaways,
-      }
-      const finalMessages = [...updatedMessages, assistantMsg]
-      setChatMessages(finalMessages)
+      })
 
       messageCountRef.current += 1
       if (messageCountRef.current >= SUMMARIZE_THRESHOLD) {
@@ -126,10 +159,13 @@ function TopicSession() {
         doSummarize(finalMessages.map((m) => ({ role: m.role, content: m.content })))
       }
     } catch {
-      setChatMessages((prev) => [
-        ...prev,
-        { id: `ai_${++msgIdRef.current}`, role: 'assistant', content: 'Sorry, something went wrong. Please try again.', responseType: 'conversational', suggestions: [], keyTakeaways: [] },
-      ])
+      patchAssistant({
+        streaming: false,
+        content: 'Sorry, something went wrong. Please try again.',
+        responseType: 'conversational',
+        suggestions: [],
+        keyTakeaways: [],
+      })
     } finally {
       setChatSending(false)
     }
@@ -144,8 +180,8 @@ function TopicSession() {
   }
 
   useEffect(() => {
-    chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMessages])
+    chatMessagesEndRef.current?.scrollIntoView({ behavior: chatSending ? 'auto' : 'smooth' })
+  }, [chatMessages, chatSending])
 
   useEffect(() => {
     localStorage.setItem(RAIL_COLLAPSED_KEY, railCollapsed ? '1' : '0')
@@ -204,7 +240,6 @@ function TopicSession() {
                 <motion.div key="learn" {...pageTurn} className="min-h-full flex flex-col">
                   <LearnMode
                     messages={chatMessages}
-                    sending={chatSending}
                     messagesEndRef={chatMessagesEndRef}
                   />
                 </motion.div>
@@ -435,7 +470,18 @@ function ChatBubble({ message }) {
     )
   }
 
-  const hasTakeaways = message.keyTakeaways?.length > 0
+  const hasTakeaways = !message.streaming && message.keyTakeaways?.length > 0
+
+  if (message.streaming) {
+    return (
+      <div className="mr-8">
+        <div className="p-4 rounded-[2px] text-sm bg-paper border border-walnut/15">
+          <p className="whitespace-pre-wrap font-body text-ink/80">{message.content}</p>
+          <span className="stream-cursor" aria-hidden="true" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="mr-8">
@@ -452,7 +498,7 @@ function ChatBubble({ message }) {
   )
 }
 
-function LearnMode({ messages, sending, messagesEndRef }) {
+function LearnMode({ messages, messagesEndRef }) {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex-1 overflow-y-auto space-y-4 pt-4 pb-4">
@@ -462,13 +508,6 @@ function LearnMode({ messages, sending, messagesEndRef }) {
             message={msg}
           />
         ))}
-        {sending && (
-          <div className="mr-8">
-            <div className="bg-paper border border-walnut/15 p-4 rounded-[2px]">
-              <Loader2 size={16} className="animate-spin text-walnut/40" />
-            </div>
-          </div>
-        )}
         <div ref={messagesEndRef} />
       </div>
     </div>

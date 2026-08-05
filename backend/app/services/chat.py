@@ -1,4 +1,6 @@
+import asyncio
 import uuid
+from collections.abc import AsyncIterator
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -148,6 +150,126 @@ class AI_Service:
             ]
 
         return result
+
+    async def chat_with_topic_stream(
+        self,
+        topic_title: str,
+        topic_id: uuid.UUID,
+        user_message: str,
+        chat_history: list[ChatMessage],
+        llm_config: ModelConfig | None = None,
+    ) -> AsyncIterator[dict]:
+        content = await read_markdown(topic_id)
+        content_context = (
+            f"\n\nEXISTING STUDY NOTES:\n---\n{content}\n---"
+            if content and content.strip()
+            else ""
+        )
+
+        system_prompt = (
+            f"You are a knowledgeable tutor guiding a student through: {topic_title}.{content_context}\n\n"
+            "- Respond thoroughly and in depth. Use markdown formatting naturally "
+            "(headers, bold, bullet points, code blocks, tables as appropriate).\n"
+            "- This is a chat turn: reply only to the student's latest message.\n"
+            "- Do NOT include follow-up questions at the end of your reply.\n"
+            "- Do NOT prefix your reply with role labels like 'Tutor:'."
+        )
+
+        messages = [{"role": "system", "content": system_prompt}]
+        for msg in chat_history:
+            messages.append({"role": msg.role, "content": msg.content})
+        messages.append({"role": "user", "content": user_message})
+
+        llm = self._build_llm(llm_config)
+
+        reply_parts: list[str] = []
+        try:
+            async for chunk in llm.astream(messages):
+                delta = self._content_text(chunk)
+                if not delta:
+                    continue
+                reply_parts.append(delta)
+                yield {"type": "chunk", "content": delta}
+                await asyncio.sleep(0.015)
+
+            reply = "".join(reply_parts)
+
+            if not reply.strip():
+                raise ValueError("Model returned an empty response")
+
+            suggestions, key_takeaways, response_type = await self._extract_metadata(
+                llm=llm,
+                topic_title=topic_title,
+                user_message=user_message,
+                reply=reply,
+            )
+
+            yield {
+                "type": "done",
+                "reply": reply,
+                "response_type": response_type,
+                "suggestions": [{"text": s.text} for s in suggestions],
+                "key_takeaways": key_takeaways,
+            }
+        except Exception as e:
+            yield {"type": "error", "detail": str(e)}
+
+    @staticmethod
+    def _content_text(chunk) -> str:
+        content = chunk.content
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for block in content:
+                if isinstance(block, str):
+                    parts.append(block)
+                elif isinstance(block, dict):
+                    if block.get("type") == "text" and block.get("text"):
+                        parts.append(block["text"])
+            return "".join(parts)
+        return str(content or "")
+
+    @staticmethod
+    async def _extract_metadata(
+        llm: BaseChatModel,
+        topic_title: str,
+        user_message: str,
+        reply: str,
+    ) -> tuple[list[SuggestionItem], list[str], str]:
+        system_prompt = (
+            "You are an AI tutor's structured post-processing step.\n"
+            "Given a student's question and the tutor's reply, produce:\n"
+            "- response_type: one of 'conversational', 'explanation', 'takeaway', or 'exercise'.\n"
+            "- suggestions: 2-4 natural follow-up questions the student might ask next, "
+            "covering deeper exploration, real-world examples, clarifications, and connections. "
+            "Do not repeat what was already explained.\n"
+            "- key_takeaways: 1-3 concise key points, or an empty list for casual replies."
+        )
+
+        structured_llm = llm.with_structured_output(ChatReply)
+        result: ChatReply = await structured_llm.ainvoke(
+            [
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Topic: {topic_title}\n\n"
+                        f"Student's question: {user_message}\n\n"
+                        f"Tutor's reply:\n{reply}"
+                    ),
+                },
+            ]
+        )
+
+        if not result.suggestions:
+            result.suggestions = [
+                SuggestionItem(text="Can you explain this in more detail?"),
+                SuggestionItem(text="How is this used in practice?"),
+                SuggestionItem(text="Can you clarify that?"),
+            ]
+
+        return result.suggestions, result.key_takeaways, result.response_type
 
     async def summarize_chat_to_content(
         self,

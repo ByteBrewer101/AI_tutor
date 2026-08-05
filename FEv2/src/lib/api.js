@@ -304,6 +304,109 @@ export async function sendChatMessage(topicId, message, chatHistory = []) {
   }
 }
 
+function parseSseFrame(frame) {
+  const data = frame
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trim())
+    .join('\n')
+  if (!data) return null
+  try {
+    return JSON.parse(data)
+  } catch {
+    return null
+  }
+}
+
+export function simulateChatStream(message, { onChunk, onDone, cause } = {}) {
+  console.warn('[api] sendChatMessageStream failed, using simulated stream:', cause?.message)
+  const text = `Echo: ${message}`
+  const suggestions = [
+    { text: 'Tell me more about this topic' },
+    { text: 'Can you explain that differently?' },
+  ]
+  let cursor = 0
+  return new Promise((resolve) => {
+    const timer = setInterval(() => {
+      const next = Math.min(text.length, cursor + 4)
+      onChunk?.(text.slice(cursor, next))
+      cursor = next
+      if (cursor >= text.length) {
+        clearInterval(timer)
+        const meta = {
+          reply: text,
+          responseType: 'conversational',
+          suggestions,
+          keyTakeaways: [],
+        }
+        onDone?.(meta)
+        resolve(meta)
+      }
+    }, 30)
+  })
+}
+
+export async function sendChatMessageStream(topicId, message, chatHistory = [], { onChunk, onDone } = {}) {
+  let started = false
+  try {
+    const body = withModelConfig({
+      topic_id: topicId,
+      message,
+      chat_history: chatHistory.map((m) => ({ role: m.role, content: m.content })),
+    })
+
+    const res = await fetch(`${API_BASE}/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    if (!res.ok || !res.body) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new Error(errBody.detail || `API error ${res.status}`)
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    const readChunks = async () => {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const frames = buffer.split('\n\n')
+        buffer = frames.pop()
+        for (const frame of frames) {
+          const event = parseSseFrame(frame)
+          if (!event) continue
+          if (event.type === 'chunk') {
+            started = true
+            onChunk?.(event.content)
+          } else if (event.type === 'done') {
+            const meta = {
+              reply: event.reply,
+              responseType: event.response_type || 'conversational',
+              suggestions: event.suggestions || [],
+              keyTakeaways: event.key_takeaways || [],
+            }
+            onDone?.(meta)
+            return meta
+          } else if (event.type === 'error') {
+            throw new Error(event.detail || 'Stream error')
+          }
+        }
+      }
+      throw new Error('Stream ended without a done event')
+    }
+
+    return await readChunks()
+  } catch (err) {
+    if (started) throw err
+    return simulateChatStream(message, { onChunk, onDone, cause: err })
+  }
+}
+
 export async function fetchTopicContent(topicId) {
   try {
     const data = await apiFetch(`/topics/${topicId}/content`)

@@ -131,6 +131,21 @@
   to { opacity: 1; }
 }
 
+@keyframes stream-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.stream-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background-color: var(--color-pine);
+  animation: stream-blink 1s steps(1, end) infinite;
+}
+
 /* ── Dark theme (ink-blue) ────────────────────────────────────── */
 .dark {
   --color-paper: #1A1C2A;
