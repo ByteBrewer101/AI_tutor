@@ -42,7 +42,7 @@ async def chat(
         topic_id=body.topic_id,
         reply=result.reply,
         response_type=result.response_type,
-        suggestions=result.suggestions,
+        suggestions=[{"text": s.text} for s in result.suggestions],
         key_takeaways=result.key_takeaways,
     )
 

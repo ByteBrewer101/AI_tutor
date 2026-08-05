@@ -16,8 +16,6 @@ import {
   FileText,
   Send,
   Lightbulb,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Stamp } from '@/components/ui/stamp'
@@ -51,12 +49,12 @@ function TopicSession() {
         {
           id: '1',
           role: 'assistant',
-          content: `Hey! Let's dive into "${nb?.title || 'this topic'}". I'm here to help you understand it step by step. What would you like to start with?`,
+          content: `Welcome! Let's explore **${nb?.title || 'this topic'}** together. I'll help you understand it step by step.\n\nWhat aspect would you like to dive into first?`,
           responseType: 'conversational',
           suggestions: [
-            'Give me an overview of this topic',
-            'What are the key concepts I should know?',
-            'Explain the basics to me',
+            { text: 'Give me an overview of this topic' },
+            { text: 'What are the key concepts?' },
+            { text: 'Explain the basics to me' },
           ],
           keyTakeaways: [],
         },
@@ -213,38 +211,6 @@ function ReadMode({ topicId, contentVersion }) {
   )
 }
 
-function ExpandableMessage({ children, threshold = 200 }) {
-  const [expanded, setExpanded] = useState(false)
-  const contentRef = useRef(null)
-  const [isLong, setIsLong] = useState(false)
-
-  useEffect(() => {
-    if (contentRef.current) {
-      setIsLong(contentRef.current.scrollHeight > threshold)
-    }
-  }, [children, threshold])
-
-  return (
-    <div>
-      <div
-        ref={contentRef}
-        className={cn(!expanded && isLong && 'max-h-[120px] overflow-hidden')}
-      >
-        {children}
-      </div>
-      {isLong && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 mt-2 text-xs text-walnut/60 hover:text-pine transition-colors font-mono"
-        >
-          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          {expanded ? 'Show less' : 'Show more'}
-        </button>
-      )}
-    </div>
-  )
-}
-
 function TakeawayCard({ takeaways }) {
   if (!takeaways || takeaways.length === 0) return null
 
@@ -272,31 +238,27 @@ function ChatBubble({ message }) {
   if (isUser) {
     return (
       <div className="ml-8">
-        <div className="p-4 rounded-[2px] text-sm bg-pine/10 text-ink">
-          <p className="font-body text-base leading-relaxed">{message.content}</p>
+        <div className="p-4 rounded-[2px] bg-pine/10 text-ink">
+          <div className="prose prose-sm max-w-none prose-headings:font-display prose-code:font-mono prose-code:text-claret prose-code:before:content-none prose-code:after:content-none prose-pre:bg-paper-dark prose-pre:text-ink">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+              {message.content}
+            </ReactMarkdown>
+          </div>
         </div>
       </div>
     )
   }
 
-  const responseType = message.responseType || 'conversational'
-  const isExplanation = responseType === 'explanation'
   const hasTakeaways = message.keyTakeaways?.length > 0
 
   return (
     <div className="mr-8">
       <div className="p-4 rounded-[2px] text-sm bg-paper border border-walnut/15">
-        {isExplanation ? (
-          <ExpandableMessage>
-            <div className="prose prose-sm max-w-none prose-headings:font-display prose-code:font-mono prose-code:text-claret prose-code:before:content-none prose-code:after:content-none prose-pre:bg-paper-dark prose-pre:text-ink">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
-                {message.content}
-              </ReactMarkdown>
-            </div>
-          </ExpandableMessage>
-        ) : (
-          <p className="font-body text-base leading-relaxed text-ink">{message.content}</p>
-        )}
+        <div className="prose prose-sm max-w-none prose-headings:font-display prose-code:font-mono prose-code:text-claret prose-code:before:content-none prose-code:after:content-none prose-pre:bg-paper-dark prose-pre:text-ink">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+            {message.content}
+          </ReactMarkdown>
+        </div>
 
         {hasTakeaways && <TakeawayCard takeaways={message.keyTakeaways} />}
       </div>
@@ -375,7 +337,11 @@ function LearnInput({ topic, messages, setMessages, sending, setSending, onConte
     }
 
     try {
-      const historyForApi = updatedMessages.map((m) => ({ role: m.role, content: m.content }))
+      const historyForApi = updatedMessages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        suggestion_hints: m.suggestions?.map((s) => s.text) || [],
+      }))
       const result = await api.sendChatMessage(topic.id, text, historyForApi)
       const assistantMsg = {
         id: `ai_${++msgIdRef.current}`,
@@ -404,10 +370,6 @@ function LearnInput({ topic, messages, setMessages, sending, setSending, onConte
   }
 
   const handleSend = () => sendMessage(input)
-
-  const handleSuggestionSelect = (suggestion) => {
-    sendMessage(suggestion)
-  }
 
   const handleSaveManual = () => {
     if (messages.length === 0) {
@@ -452,16 +414,19 @@ function LearnInput({ topic, messages, setMessages, sending, setSending, onConte
       </AnimatePresence>
 
       {showSuggestions && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {latestSuggestions.suggestions.map((s, i) => (
-            <button
-              key={i}
-              onClick={() => handleSuggestionSelect(s)}
-              className="px-3 py-1.5 text-sm font-body bg-paper-dark/50 border border-walnut/15 rounded-[2px] text-walnut hover:text-ink hover:bg-paper-dark transition-colors cursor-pointer"
-            >
-              {s}
-            </button>
-          ))}
+        <div className="mb-3">
+          <p className="text-xs font-mono text-walnut/40 mb-2">Suggested questions</p>
+          <div className="flex flex-wrap gap-2">
+            {latestSuggestions.suggestions.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => sendMessage(s.text)}
+                className="px-3 py-1.5 text-sm font-body bg-paper-dark/50 border border-walnut/15 rounded-full text-walnut hover:text-ink hover:bg-paper-dark transition-colors cursor-pointer"
+              >
+                {s.text}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

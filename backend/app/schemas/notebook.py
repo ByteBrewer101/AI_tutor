@@ -61,6 +61,13 @@ class TopicAIResponse(BaseModel):
     )
 
 
+class QuizQuestionsResponse(BaseModel):
+    """Wrapper for structured quiz output."""
+    questions: list[QuizQuestion] = Field(
+        description="List of quiz questions generated from the learning material."
+    )
+
+
 class QuestionCreate(BaseModel):
     type: str = "open"
     question: str

@@ -274,13 +274,15 @@ export async function updateTopicContent(notebookId, topicId, content) {
 
 export async function sendChatMessage(topicId, message, chatHistory = []) {
   try {
+    const body = {
+      topic_id: topicId,
+      message,
+      chat_history: chatHistory.map((m) => ({ role: m.role, content: m.content })),
+    }
+
     const data = await apiFetch('/chat', {
       method: 'POST',
-      body: JSON.stringify({
-        topic_id: topicId,
-        message,
-        chat_history: chatHistory.map((m) => ({ role: m.role, content: m.content })),
-      }),
+      body: JSON.stringify(body),
     })
     return {
       reply: data.reply,
@@ -292,7 +294,10 @@ export async function sendChatMessage(topicId, message, chatHistory = []) {
     return mockFallback('sendChatMessage', err, () => ({
       reply: `Echo: ${message}`,
       responseType: 'conversational',
-      suggestions: [`Tell me more about this topic`, `Can you explain that differently?`],
+      suggestions: [
+        { text: 'Tell me more about this topic' },
+        { text: 'Can you explain that differently?' },
+      ],
       keyTakeaways: [],
     }))
   }
