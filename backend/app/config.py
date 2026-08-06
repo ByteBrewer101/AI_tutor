@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3.2"
     APP_NAME: str = "AI Tutor"
     CONTENT_DIR: str = "storage/markdown"
+    AUTH_SECRET: str = "change-me-in-production"
+    AUTH_ALGORITHM: str = "HS256"
 
 
 settings = Settings()

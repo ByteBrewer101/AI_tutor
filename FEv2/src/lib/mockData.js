@@ -1,6 +1,7 @@
 let notebooks = [
   {
     id: 'nb_1',
+    isPublic: true,
     title: 'Thermodynamics',
     description: 'Heat, work, and entropy — the laws that govern energy transfer',
     createdAt: '2025-04-10T08:00:00Z',
@@ -52,6 +53,7 @@ let notebooks = [
   },
   {
     id: 'nb_2',
+    isPublic: true,
     title: 'Organic Chemistry',
     description: 'Carbon compounds, reaction mechanisms, and functional groups',
     createdAt: '2025-05-20T10:00:00Z',
@@ -84,6 +86,7 @@ let notebooks = [
   },
   {
     id: 'nb_3',
+    isPublic: true,
     title: 'Modern History',
     description: 'World wars, cold war, and the making of the modern world',
     createdAt: '2025-06-01T09:00:00Z',
@@ -109,6 +112,19 @@ let nextId = 100
 
 export function getNotebooks() {
   return notebooks
+}
+
+export function getFeedNotebooks() {
+  const owners = ['Elena Vance', 'Marcus Webb', 'Priya Nair', 'Sofia Reyes']
+  return notebooks.map((nb, i) => ({
+    id: nb.id,
+    ownerId: `user_${i + 1}`,
+    ownerName: owners[i % owners.length],
+    name: nb.title,
+    description: nb.description,
+    createdAt: nb.createdAt,
+    topicCount: nb.topics.length,
+  }))
 }
 
 export function getNotebook(id) {

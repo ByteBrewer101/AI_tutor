@@ -1,7 +1,15 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -14,8 +22,12 @@ class Notebook(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -35,6 +47,7 @@ class Notebook(Base):
     documents: Mapped[list["Document"]] = relationship(
         back_populates="notebook", cascade="all, delete-orphan"
     )
+    owner: Mapped["User | None"] = relationship(back_populates="notebooks")
 
 
 class Topic(Base):
@@ -55,9 +68,6 @@ class Topic(Base):
 
     notebook: Mapped["Notebook"] = relationship(back_populates="topics")
     questions: Mapped[list["Question"]] = relationship(
-        back_populates="topic", cascade="all, delete-orphan"
-    )
-    user_notes: Mapped[list["MarginNote"]] = relationship(
         back_populates="topic", cascade="all, delete-orphan"
     )
     progress: Mapped["Progress | None"] = relationship(
@@ -85,31 +95,20 @@ class Question(Base):
     topic: Mapped["Topic"] = relationship(back_populates="questions")
 
 
-class MarginNote(Base):
-    __tablename__ = "margin_notes"
+class Progress(Base):
+    __tablename__ = "progress"
+    __table_args__ = (
+        UniqueConstraint("user_id", "topic_id", name="ix_progress_user_topic"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
     topic_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("topics.id"), nullable=False
-    )
-    text: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-
-    topic: Mapped["Topic"] = relationship(back_populates="user_notes")
-
-
-class Progress(Base):
-    __tablename__ = "progress"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    topic_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("topics.id"), unique=True, nullable=False
     )
     read: Mapped[bool] = mapped_column(Boolean, default=False)
     quizzed: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -124,3 +123,4 @@ class Progress(Base):
     )
 
     topic: Mapped["Topic"] = relationship(back_populates="progress")
+    user: Mapped["User | None"] = relationship()

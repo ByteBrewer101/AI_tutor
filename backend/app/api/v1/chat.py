@@ -6,8 +6,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_user
 from app.db.session import get_db
-from app.models.notebook import Topic
+from app.models.notebook import Notebook, Topic
+from app.models.user import User
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
@@ -21,8 +23,24 @@ router = APIRouter()
 ai_service = AI_Service()
 
 
+async def get_owned_topic_or_404(topic_id: uuid.UUID, db: AsyncSession, user: User) -> Topic:
+    result = await db.execute(select(Topic).where(Topic.id == topic_id))
+    topic = result.scalar_one_or_none()
+    if topic is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+
+    notebook_result = await db.execute(select(Notebook).where(Notebook.id == topic.notebook_id))
+    notebook = notebook_result.scalar_one_or_none()
+    if notebook is None or notebook.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    return topic
+
+
 @router.post("/models/test")
-async def test_model_connection(body: ModelConfig):
+async def test_model_connection(
+    body: ModelConfig,
+    user: User = Depends(get_current_user),
+):
     try:
         await ai_service.test_connection(body)
     except Exception as e:
@@ -33,12 +51,10 @@ async def test_model_connection(body: ModelConfig):
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     body: ChatRequest,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Topic).where(Topic.id == body.topic_id))
-    topic = result.scalar_one_or_none()
-    if topic is None:
-        raise HTTPException(status_code=404, detail="Topic not found")
+    topic = await get_owned_topic_or_404(body.topic_id, db, user)
 
     try:
         result = await ai_service.chat_with_topic(
@@ -63,12 +79,10 @@ async def chat(
 @router.post("/chat/stream")
 async def chat_stream(
     body: ChatRequest,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Topic).where(Topic.id == body.topic_id))
-    topic = result.scalar_one_or_none()
-    if topic is None:
-        raise HTTPException(status_code=404, detail="Topic not found")
+    topic = await get_owned_topic_or_404(body.topic_id, db, user)
 
     async def event_stream():
         async for event in ai_service.chat_with_topic_stream(
@@ -87,12 +101,10 @@ async def chat_stream(
 async def summarize_chat(
     topic_id: uuid.UUID,
     body: SummarizeRequest,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Topic).where(Topic.id == topic_id))
-    topic = result.scalar_one_or_none()
-    if topic is None:
-        raise HTTPException(status_code=404, detail="Topic not found")
+    topic = await get_owned_topic_or_404(topic_id, db, user)
 
     if not body.chat_history:
         raise HTTPException(status_code=400, detail="Chat history is empty")

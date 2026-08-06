@@ -4,8 +4,12 @@ import { ArrowRight } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Stamp } from '@/components/ui/stamp'
 import { slideUp, staggerContainer } from '@/design/motion'
+import { useAuth } from '@/lib/useAuth'
 
 function LandingHero() {
+  const { status } = useAuth()
+  const startTarget = status === 'authenticated' ? '/app' : '/login'
+
   return (
     <section className="relative overflow-hidden">
       <div className="max-w-[1040px] mx-auto px-6 lg:px-10 py-16 lg:py-24">
@@ -33,7 +37,7 @@ function LandingHero() {
 
             <motion.div variants={slideUp} className="flex gap-4">
               <Link
-                to="/app"
+                to={startTarget}
                 className="inline-flex items-center gap-2 bg-pine text-paper border border-pine rounded-[3px] px-6 py-3 font-body text-base hover:bg-pine/90 transition-colors no-underline"
               >
                 Start studying
@@ -45,6 +49,12 @@ function LandingHero() {
               >
                 See how it works
               </a>
+              <Link
+                to="/explore"
+                className="inline-flex items-center gap-2 text-walnut hover:text-ink font-body text-base transition-colors no-underline"
+              >
+                Explore public notebooks
+              </Link>
             </motion.div>
           </motion.div>
 

@@ -1,22 +1,25 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { FileText, MessageCircle, HelpCircle, Sparkles } from 'lucide-react'
+import { FileText, MessageCircle, HelpCircle, Sparkles, Globe, Lock } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { InkTextarea } from '@/components/ui/input'
 import { Stamp } from '@/components/ui/stamp'
 import { slideUp, staggerContainer, liftOnHover } from '@/design/motion'
 import { formatRelativeTime, cn } from '@/lib/utils'
+import { useAuth } from '@/lib/useAuth'
 import * as api from '@/lib/api'
 
 function NotebookView() {
   const { notebookId } = useParams()
+  const { user } = useAuth()
   const [notebook, setNotebook] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showPrompt, setShowPrompt] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [toggling, setToggling] = useState(false)
 
   useEffect(() => {
     api.fetchNotebook(notebookId).then((nb) => {
@@ -38,6 +41,18 @@ function NotebookView() {
     setPrompt('')
   }
 
+  const handleToggleVisibility = async () => {
+    if (!notebook || toggling) return
+    const next = !notebook.isPublic
+    setToggling(true)
+    try {
+      await api.updateNotebook(notebookId, { isPublic: next })
+      setNotebook((prev) => ({ ...prev, isPublic: next }))
+    } finally {
+      setToggling(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -57,12 +72,33 @@ function NotebookView() {
     )
   }
 
+  const isOwner = !notebook.ownerId || notebook.ownerId === user?.id
+
   return (
     <div>
       <div className="mb-8">
-        <h2 className="font-display text-2xl font-medium text-ink">
-          {notebook.title}
-        </h2>
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="font-display text-2xl font-medium text-ink">
+            {notebook.title}
+          </h2>
+          {isOwner && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={toggling}
+              onClick={handleToggleVisibility}
+              className={cn(
+                'shrink-0',
+                notebook.isPublic
+                  ? 'text-pine border-pine/40 hover:border-pine'
+                  : 'text-walnut border-walnut/40 hover:border-walnut'
+              )}
+            >
+              {notebook.isPublic ? <Globe size={14} /> : <Lock size={14} />}
+              {notebook.isPublic ? 'Public' : 'Private'}
+            </Button>
+          )}
+        </div>
         {notebook.description && (
           <p className="text-walnut text-sm mt-2">{notebook.description}</p>
         )}

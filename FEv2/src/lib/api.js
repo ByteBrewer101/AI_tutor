@@ -3,6 +3,40 @@ import { toApiConfig, withModelConfig } from './modelConfig'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
+const AUTH_TOKEN_KEY = 'marginalia-token'
+export const AUTH_EXPIRED_EVENT = 'auth:expired'
+
+export function getAuthToken() {
+  try {
+    return localStorage.getItem(AUTH_TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function setAuthToken(token) {
+  try {
+    localStorage.setItem(AUTH_TOKEN_KEY, token)
+  } catch { /* ignore */ }
+}
+
+export function clearAuthToken() {
+  try {
+    localStorage.removeItem(AUTH_TOKEN_KEY)
+  } catch { /* ignore */ }
+}
+
+function isAuthPath(path) {
+  return path.startsWith('/auth/')
+}
+
+function onUnauthorized() {
+  clearAuthToken()
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
+  }
+}
+
 function toCamelCase(str) {
   return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
 }
@@ -18,11 +52,19 @@ function toCamel(obj) {
 }
 
 async function apiFetch(path, options = {}) {
+  const token = getAuthToken()
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
   })
   if (!res.ok) {
+    if (res.status === 401 && !isAuthPath(path)) {
+      onUnauthorized()
+    }
     const body = await res.json().catch(() => ({}))
     throw new Error(body.detail || `API error ${res.status}`)
   }
@@ -87,6 +129,23 @@ export async function fetchNotebooks() {
     return enriched
   } catch (err) {
     return mockFallback('fetchNotebooks', err, mock.getNotebooks)
+  }
+}
+
+export async function fetchFeedNotebooks({ offset = 0, limit = 6 } = {}) {
+  try {
+    const raw = await apiFetch(`/feed/notebooks?offset=${offset}&limit=${limit}`)
+    const page = toCamel(raw)
+    return {
+      items: (page.items || []).map((nb) => ({ ...nb, title: nb.name || nb.title })),
+      hasMore: !!page.hasMore,
+    }
+  } catch {
+    const all = mock.getFeedNotebooks()
+    return {
+      items: all.slice(offset, offset + limit).map((nb) => ({ ...nb, title: nb.name || nb.title })),
+      hasMore: offset + limit < all.length,
+    }
   }
 }
 
@@ -196,6 +255,23 @@ export async function createNotebook(title, description = '') {
     return nb
   } catch (err) {
     return mockFallback('createNotebook', err, () => mock.createNotebook(title, description))
+  }
+}
+
+export async function updateNotebook(id, patch) {
+  try {
+    const raw = await apiFetch(`/notebooks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    })
+    const nb = toCamel(raw)
+    nb.title = nb.name || nb.title
+    return nb
+  } catch (err) {
+    console.warn('[api] updateNotebook failed, mutating mock data:', err.message)
+    const mockNb = mock.getNotebook(id)
+    if (mockNb) Object.assign(mockNb, patch)
+    return mockNb
   }
 }
 
@@ -357,11 +433,17 @@ export async function sendChatMessageStream(topicId, message, chatHistory = [], 
 
     const res = await fetch(`${API_BASE}/chat/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+      },
       body: JSON.stringify(body),
     })
 
     if (!res.ok || !res.body) {
+      if (res.status === 401) {
+        onUnauthorized()
+      }
       const errBody = await res.json().catch(() => ({}))
       throw new Error(errBody.detail || `API error ${res.status}`)
     }
@@ -451,4 +533,37 @@ export async function testModelConnection(config) {
     method: 'POST',
     body: JSON.stringify(toApiConfig(config)),
   })
+}
+
+export async function login(email, password) {
+  const data = await apiFetch('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  })
+  return { token: data.token, user: toCamel(data.user) }
+}
+
+export async function signup(email, password, displayName) {
+  const data = await apiFetch('/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ email, password, display_name: displayName }),
+  })
+  return { token: data.token, user: toCamel(data.user) }
+}
+
+export async function fetchMe() {
+  const data = await apiFetch('/auth/me')
+  return toCamel(data)
+}
+
+export async function updateMe(patch) {
+  const data = await apiFetch('/auth/me', {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+  return toCamel(data)
+}
+
+export function logout() {
+  clearAuthToken()
 }

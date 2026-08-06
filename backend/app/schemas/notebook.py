@@ -11,15 +11,38 @@ class NotebookCreate(BaseModel):
     description: str | None = None
 
 
+class NotebookPatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+    is_public: bool | None = None
+
+
 class NotebookResponse(BaseModel):
     id: uuid.UUID
+    owner_id: uuid.UUID | None = Field(validation_alias="user_id")
     name: str
     description: str | None
+    is_public: bool
     created_at: datetime
     accessed_at: datetime
     access_count: int
 
     model_config = {"from_attributes": True}
+
+
+class FeedNotebookResponse(BaseModel):
+    id: uuid.UUID
+    owner_id: uuid.UUID | None
+    owner_name: str | None
+    name: str
+    description: str | None
+    created_at: datetime
+    topic_count: int = 0
+
+
+class FeedPageResponse(BaseModel):
+    items: list[FeedNotebookResponse]
+    has_more: bool
 
 
 class TopicResponse(BaseModel):
@@ -85,19 +108,6 @@ class QuestionResponse(BaseModel):
     question: str
     answer: str | None
     options: list[str] | None
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class MarginNoteCreate(BaseModel):
-    text: str
-
-
-class MarginNoteResponse(BaseModel):
-    id: uuid.UUID
-    topic_id: uuid.UUID
-    text: str
     created_at: datetime
 
     model_config = {"from_attributes": True}

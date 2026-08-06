@@ -1,9 +1,10 @@
 import { Link, useLocation } from 'react-router-dom'
-import { BookOpen, RotateCcw, BarChart3, Settings } from 'lucide-react'
+import { BookOpen, RotateCcw, BarChart3, Settings, Compass } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { to: '/app/library', icon: BookOpen, label: 'Library' },
+  { to: '/explore', icon: Compass, label: 'Explore' },
   { to: '/app/review', icon: RotateCcw, label: 'Review' },
   { to: '/app/dashboard', icon: BarChart3, label: 'Stats' },
   { to: '/app/settings', icon: Settings, label: 'Settings' },
