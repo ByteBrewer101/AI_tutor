@@ -43,7 +43,7 @@ function Sidebar({ mobileOpen, onClose }) {
           {/* Logo */}
           <div className="flex items-center justify-center h-10 mb-4 shrink-0">
             <span className="font-display text-xl font-semibold text-pine select-none">
-              M
+              N
             </span>
           </div>
 
@@ -52,7 +52,7 @@ function Sidebar({ mobileOpen, onClose }) {
 
           {/* Notebook tree */}
           <div
-            className="flex-1 overflow-hidden mt-2"
+            className="flex-1 min-h-0 overflow-y-auto scrollbar-none mt-2"
             style={{
               opacity: expanded ? 1 : 0,
               transition: 'opacity 0.15s ease',
@@ -98,7 +98,7 @@ function Sidebar({ mobileOpen, onClose }) {
               <div className="flex flex-col h-full py-4 px-3">
                 <div className="flex items-center justify-between h-10 mb-4 px-2">
                   <span className="font-display text-xl font-semibold text-pine">
-                    The Marginalia
+                    Nuro
                   </span>
                   <button
                     onClick={onClose}
@@ -111,7 +111,7 @@ function Sidebar({ mobileOpen, onClose }) {
 
                 <SidebarNav expanded={true} onNavigate={onClose} />
 
-                <div className="flex-1 overflow-auto mt-2">
+                <div className="flex-1 min-h-0 overflow-y-auto scrollbar-none mt-2">
                   <NotebookTree onNavigate={onClose} />
                 </div>
 

@@ -4,7 +4,7 @@ function LandingFooter() {
       <div className="max-w-[1040px] mx-auto px-6 lg:px-10 py-6">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <span className="font-display text-sm font-medium text-ink">
-            The Marginalia
+            Nuro
           </span>
 
           <nav className="flex items-center gap-4 text-xs text-walnut/50 font-mono">

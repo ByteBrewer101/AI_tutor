@@ -24,15 +24,15 @@ function LandingHero() {
               variants={slideUp}
               className="font-display text-4xl lg:text-5xl font-semibold text-ink leading-tight mb-4"
             >
-              The Marginalia
+              Nuro
             </motion.h1>
 
             <motion.p
               variants={slideUp}
               className="font-body text-lg text-walnut leading-relaxed mb-8 max-w-md"
             >
-              A study journal that ages with you. Write in the margins,
-              ask the AI, quiz yourself — and watch the notebook fill with your own hand.
+              A study journal that ages with you. Jot side notes, ask the AI,
+              quiz yourself — and watch the notebook fill with your own hand.
             </motion.p>
 
             <motion.div variants={slideUp} className="flex gap-4">

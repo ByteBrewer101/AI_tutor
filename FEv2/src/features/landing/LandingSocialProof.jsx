@@ -8,7 +8,7 @@ const testimonials = [
     subject: 'Physics, 3rd year',
   },
   {
-    quote: "The margin notes are genius. I open a chapter and see what I was thinking last week — it's like time-travel.",
+    quote: "The side notes are genius. I open a chapter and see what I was thinking last week — it's like time-travel.",
     name: 'Marcus T.',
     subject: 'History, Masters',
   },

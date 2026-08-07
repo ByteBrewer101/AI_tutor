@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { FileText, MessageCircle, HelpCircle, Sparkles, Globe, Lock } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { InkTextarea } from '@/components/ui/input'
 import { Stamp } from '@/components/ui/stamp'
 import { slideUp, staggerContainer, liftOnHover } from '@/design/motion'
@@ -46,7 +47,7 @@ function NotebookView() {
     const next = !notebook.isPublic
     setToggling(true)
     try {
-      await api.updateNotebook(notebookId, { isPublic: next })
+      await api.setNotebookVisibility(notebookId, next)
       setNotebook((prev) => ({ ...prev, isPublic: next }))
     } finally {
       setToggling(false)
@@ -72,7 +73,7 @@ function NotebookView() {
     )
   }
 
-  const isOwner = !notebook.ownerId || notebook.ownerId === user?.id
+  const isOwner = notebook.ownerId === user?.id
 
   return (
     <div>
@@ -82,21 +83,23 @@ function NotebookView() {
             {notebook.title}
           </h2>
           {isOwner && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={toggling}
-              onClick={handleToggleVisibility}
-              className={cn(
-                'shrink-0',
-                notebook.isPublic
-                  ? 'text-pine border-pine/40 hover:border-pine'
-                  : 'text-walnut border-walnut/40 hover:border-walnut'
-              )}
-            >
-              {notebook.isPublic ? <Globe size={14} /> : <Lock size={14} />}
-              {notebook.isPublic ? 'Public' : 'Private'}
-            </Button>
+            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+              <Switch
+                checked={notebook.isPublic}
+                disabled={toggling}
+                onChange={handleToggleVisibility}
+                aria-label="Notebook visibility"
+              />
+              <span
+                className={cn(
+                  'flex items-center gap-1.5 text-sm font-body',
+                  notebook.isPublic ? 'text-pine' : 'text-walnut'
+                )}
+              >
+                {notebook.isPublic ? <Globe size={14} /> : <Lock size={14} />}
+                {notebook.isPublic ? 'Public' : 'Private'}
+              </span>
+            </div>
           )}
         </div>
         {notebook.description && (
@@ -108,10 +111,12 @@ function NotebookView() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display text-lg text-ink">Topics</h3>
-            <Button variant="ghost" size="sm" onClick={() => setShowPrompt(true)}>
-              <Sparkles size={14} className="mr-1" />
-              Generate more
-            </Button>
+            {isOwner && (
+              <Button variant="ghost" size="sm" onClick={() => setShowPrompt(true)}>
+                <Sparkles size={14} className="mr-1" />
+                Generate more
+              </Button>
+            )}
           </div>
 
           <motion.div

@@ -16,14 +16,15 @@ from app.schemas.notebook import (
     NotebookCreate,
     NotebookPatch,
     NotebookResponse,
+    NextQuestionRequest,
     ProgressResponse,
     ProgressUpdate,
     QuestionCreate,
     QuestionResponse,
-    QuizRequest,
-    QuizResponse,
+    QuizQuestion,
     TopicContentResponse,
     TopicResponse,
+    VisibilityUpdate,
 )
 from app.services.chat import AI_Service
 from app.services.storage import read_markdown, save_markdown, delete_markdown
@@ -113,7 +114,7 @@ async def list_feed(
         select(Notebook, User.display_name, topic_count.label("topic_count"))
         .outerjoin(User, Notebook.user_id == User.id)
         .where(Notebook.is_public.is_(True))
-        .order_by(Notebook.created_at.desc())
+        .order_by(func.coalesce(Notebook.published_at, Notebook.created_at).desc())
         .offset(offset)
         .limit(limit + 1)
     )
@@ -162,6 +163,29 @@ async def patch_notebook(
     update_data = body.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(notebook, field, value)
+    if "is_public" in update_data:
+        notebook.published_at = (
+            datetime.now(timezone.utc) if notebook.is_public else None
+        )
+    await db.commit()
+    await db.refresh(notebook)
+    return notebook
+
+
+@router.put(
+    "/notebooks/{notebook_id}/visibility", response_model=NotebookResponse
+)
+async def set_notebook_visibility(
+    notebook_id: uuid.UUID,
+    body: VisibilityUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    notebook = await get_owned_notebook_or_404(notebook_id, db, user)
+    notebook.is_public = body.is_public
+    notebook.published_at = (
+        datetime.now(timezone.utc) if body.is_public else None
+    )
     await db.commit()
     await db.refresh(notebook)
     return notebook
@@ -273,7 +297,7 @@ async def list_questions(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    topic = await get_owned_topic_or_404(topic_id, db, user)
+    topic = await get_readable_topic_or_404(topic_id, db, user)
     result = await db.execute(
         select(Question).where(Question.topic_id == topic.id).order_by(Question.created_at)
     )
@@ -289,7 +313,7 @@ async def get_progress(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    topic = await get_owned_topic_or_404(topic_id, db, user)
+    topic = await get_readable_topic_or_404(topic_id, db, user)
     result = await db.execute(
         select(Progress).where(
             Progress.topic_id == topic.id, Progress.user_id == user.id
@@ -311,7 +335,7 @@ async def update_progress(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    topic = await get_owned_topic_or_404(topic_id, db, user)
+    topic = await get_readable_topic_or_404(topic_id, db, user)
     result = await db.execute(
         select(Progress).where(
             Progress.topic_id == topic.id, Progress.user_id == user.id
@@ -363,31 +387,29 @@ async def update_topic_content(
 # --- Quiz ---
 
 
-@router.post("/topics/{topic_id}/quiz", response_model=QuizResponse)
-async def generate_quiz(
+@router.post("/topics/{topic_id}/quiz/next", response_model=QuizQuestion)
+async def generate_next_question(
     topic_id: uuid.UUID,
-    body: QuizRequest = QuizRequest(),
+    body: NextQuestionRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     topic = await get_readable_topic_or_404(topic_id, db, user)
     content = await read_markdown(topic.id)
     if not content or not content.strip():
-        return QuizResponse(
-            topic_id=topic.id,
-            topic_title=topic.title,
-            questions=[],
+        raise HTTPException(
+            status_code=400,
+            detail="No content yet — build content in Learn mode first",
         )
 
-    questions = await ai_service.generate_quiz(
+    question = await ai_service.generate_next_question(
         topic.title,
         content,
-        body.num_questions,
+        difficulty=body.difficulty,
+        asked_questions=body.asked_questions,
+        correct_count=body.correct_count,
+        wrong_count=body.wrong_count,
         llm_config=body.llm_config,
     )
 
-    return QuizResponse(
-        topic_id=topic.id,
-        topic_title=topic.title,
-        questions=questions,
-    )
+    return question

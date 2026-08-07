@@ -63,7 +63,7 @@ function ExplorePage() {
       <header className="sticky top-0 z-10 bg-paper/90 backdrop-blur-sm border-b border-walnut/10">
         <div className="max-w-[1040px] mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
           <Link to="/" className="font-display text-lg font-semibold text-ink no-underline">
-            The Marginalia
+            Nuro
           </Link>
           <nav className="flex items-center gap-4">
             {status === 'authenticated' ? (
@@ -99,7 +99,7 @@ function ExplorePage() {
         <div className="mb-8 text-center">
           <h2 className="font-display text-2xl font-medium text-ink">Explore</h2>
           <p className="text-walnut text-sm mt-1">
-            Public notebooks shared by the Marginalia community
+            Public notebooks shared by the Nuro community
           </p>
         </div>
 

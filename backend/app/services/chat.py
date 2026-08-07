@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.notebook import Notebook, Topic
-from app.schemas.notebook import TopicAIResponse, QuizQuestion, QuizQuestionsResponse
+from app.schemas.notebook import TopicAIResponse, QuizQuestion
 from app.schemas.chat import ChatMessage, ChatReply, ModelConfig, SuggestionItem
 from app.services.storage import save_markdown, read_markdown
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -15,6 +15,16 @@ from langchain_ollama import ChatOllama
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+
+def _difficulty_label(difficulty: int) -> str:
+    if difficulty <= 2:
+        return "easy"
+    if difficulty <= 4:
+        return "medium"
+    if difficulty <= 7:
+        return "hard"
+    return "expert"
 
 
 class AI_Service:
@@ -354,32 +364,57 @@ class AI_Service:
         await save_markdown(topic_id, summary)
         return summary
 
-    async def generate_quiz(
+    async def generate_next_question(
         self,
         topic_title: str,
         markdown_content: str,
-        num_questions: int = 5,
+        difficulty: int = 1,
+        asked_questions: list[str] | None = None,
+        correct_count: int = 0,
+        wrong_count: int = 0,
         llm_config: ModelConfig | None = None,
-    ) -> list[QuizQuestion]:
+    ) -> QuizQuestion:
+        difficulty_label = _difficulty_label(difficulty)
+        asked = asked_questions or []
+        avoid_prompt = ""
+        if asked:
+            avoid_prompt = (
+                "- Do NOT repeat any of these already-asked questions:\n"
+                + "\n".join(f"  - {q}" for q in asked[-10:])
+            )
+
         system_prompt = (
-            "You are an expert quiz creator. Generate a quiz from the provided material.\n"
-            "- Mix of MCQ (4 options, 1 correct) and open-ended questions\n"
+            "You are an expert quiz creator. Generate exactly ONE multiple-choice question "
+            "from the provided material.\n"
+            "- The question must have exactly 4 options and exactly one correct answer\n"
+            "- The answer must be the exact option text of the correct choice\n"
             "- Test comprehension, not memorization\n"
-            "- Vary difficulty levels\n"
-            f"- Generate exactly {num_questions} questions"
+            "- Do not ask questions that depend on other questions\n"
+            f"- This is question #{difficulty} in an ongoing session. Difficulty must strictly "
+            f"increase with each question. Current difficulty: {difficulty_label}.\n"
+            "  easy = basic recall; medium = understanding/application; "
+            "hard = analysis; expert = synthesis and edge cases.\n"
+            f"{avoid_prompt}\n"
+            f"- Session so far: {correct_count} correct, {wrong_count} wrong.\n"
+            'Set the "difficulty" field to the difficulty label of this question.'
         )
 
         llm = self._build_llm(llm_config)
-        quiz_structured_llm = llm.with_structured_output(QuizQuestionsResponse)
+        quiz_structured_llm = llm.with_structured_output(QuizQuestion)
 
-        result: QuizQuestionsResponse = await quiz_structured_llm.ainvoke(
+        result: QuizQuestion = await quiz_structured_llm.ainvoke(
             [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Topic: {topic_title}\n\nMaterial:\n{markdown_content}"},
             ]
         )
 
-        return result.questions
+        if not result.options or len(result.options) < 2:
+            result.options = ["True", "False"]
+            result.answer = "True"
+        if not result.difficulty:
+            result.difficulty = difficulty_label
+        return result
 
     async def test_connection(self, llm_config: ModelConfig | None = None) -> str:
         llm = self._build_llm(llm_config)

@@ -17,6 +17,10 @@ class NotebookPatch(BaseModel):
     is_public: bool | None = None
 
 
+class VisibilityUpdate(BaseModel):
+    is_public: bool
+
+
 class NotebookResponse(BaseModel):
     id: uuid.UUID
     owner_id: uuid.UUID | None = Field(validation_alias="user_id")
@@ -63,34 +67,37 @@ class TopicContentResponse(BaseModel):
 
 
 class QuizQuestion(BaseModel):
+    """Schema the LLM must fill in when generating a single quiz question."""
     type: str = "mcq"
     question: str
     options: list[str] | None = None
     answer: str
+    difficulty: str | None = Field(
+        default=None,
+        description="Difficulty label of the question: easy, medium, hard, or expert.",
+    )
 
 
-class QuizRequest(BaseModel):
-    num_questions: int = 5
+class NextQuestionRequest(BaseModel):
+    """Context for generating the next single quiz question."""
+    difficulty: int = Field(
+        default=1,
+        ge=1,
+        description="Monotonic difficulty level of the upcoming question; higher means harder.",
+    )
+    asked_questions: list[str] = Field(
+        default_factory=list,
+        description="Question texts already asked, so the next one is not repeated.",
+    )
+    correct_count: int = Field(default=0, ge=0)
+    wrong_count: int = Field(default=0, ge=0)
     llm_config: ModelConfig | None = None
-
-
-class QuizResponse(BaseModel):
-    topic_id: uuid.UUID
-    topic_title: str
-    questions: list[QuizQuestion]
 
 
 class TopicAIResponse(BaseModel):
     """Schema the LLM must fill in when generating subtopics."""
     topics: list[str] = Field(
         ..., description="A list of concise subtopic titles for the given learning topic."
-    )
-
-
-class QuizQuestionsResponse(BaseModel):
-    """Wrapper for structured quiz output."""
-    questions: list[QuizQuestion] = Field(
-        description="List of quiz questions generated from the learning material."
     )
 
 

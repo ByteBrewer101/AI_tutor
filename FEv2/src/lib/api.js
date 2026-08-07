@@ -3,7 +3,7 @@ import { toApiConfig, withModelConfig } from './modelConfig'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
-const AUTH_TOKEN_KEY = 'marginalia-token'
+const AUTH_TOKEN_KEY = 'nuro-token'
 export const AUTH_EXPIRED_EVENT = 'auth:expired'
 
 export function getAuthToken() {
@@ -275,6 +275,33 @@ export async function updateNotebook(id, patch) {
   }
 }
 
+export async function setNotebookVisibility(id, isPublic) {
+  try {
+    const raw = await apiFetch(`/notebooks/${id}/visibility`, {
+      method: 'PUT',
+      body: JSON.stringify({ is_public: isPublic }),
+    })
+    const nb = toCamel(raw)
+    nb.title = nb.name || nb.title
+    return nb
+  } catch (err) {
+    console.warn('[api] setNotebookVisibility failed, mutating mock data:', err.message)
+    const mockNb = mock.getNotebook(id)
+    if (mockNb) mockNb.isPublic = isPublic
+    return mockNb
+  }
+}
+
+export async function deleteNotebook(id) {
+  try {
+    await apiFetch(`/notebooks/${id}`, { method: 'DELETE' })
+    return true
+  } catch (err) {
+    console.warn('[api] deleteNotebook failed:', err.message)
+    return false
+  }
+}
+
 export async function createTopic(notebookId, title, content = '') {
   try {
     const raw = await apiFetch(`/notebooks/${notebookId}/topics/generate`, {
@@ -516,15 +543,36 @@ export async function summarizeChat(topicId, chatHistory) {
   }
 }
 
-export async function generateQuiz(topicId, numQuestions = 5) {
+export async function generateNextQuestion(
+  topicId,
+  { difficulty = 1, askedQuestions = [], correctCount = 0, wrongCount = 0 } = {}
+) {
   try {
-    const data = await apiFetch(`/topics/${topicId}/quiz`, {
+    const data = await apiFetch(`/topics/${topicId}/quiz/next`, {
       method: 'POST',
-      body: JSON.stringify(withModelConfig({ num_questions: numQuestions })),
+      body: JSON.stringify(
+        withModelConfig({
+          difficulty,
+          asked_questions: askedQuestions,
+          correct_count: correctCount,
+          wrong_count: wrongCount,
+        })
+      ),
     })
-    return toCamel(data)
+    const q = toCamel(data)
+    if (q.type === 'mcq' && q.options && typeof q.answer === 'string') {
+      const idx = q.options.indexOf(q.answer)
+      q.answer = idx >= 0 ? idx : 0
+    }
+    return q
   } catch (err) {
-    return mockFallback('generateQuiz', err, () => ({ questions: [] }))
+    return mockFallback('generateNextQuestion', err, () => ({
+      type: 'mcq',
+      question: `Sample question ${difficulty} from the topic material.`,
+      options: ['Option A', 'Option B', 'Option C', 'Option D'],
+      answer: 0,
+      difficulty: difficulty <= 2 ? 'easy' : difficulty <= 4 ? 'medium' : difficulty <= 7 ? 'hard' : 'expert',
+    }))
   }
 }
 

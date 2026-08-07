@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 
-const STORAGE_KEY = 'marginalia-theme'
+const STORAGE_KEY = 'nuro-theme'
 const THEMES = ['light', 'dark', 'nord']
 
 function getSystemTheme() {

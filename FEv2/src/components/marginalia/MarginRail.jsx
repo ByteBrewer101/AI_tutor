@@ -32,7 +32,7 @@ function MarginRail({ topicId }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="font-hand text-sm text-walnut/60">Margin Notes</h4>
+        <h4 className="font-hand text-sm text-walnut/60">Side Notes</h4>
         {!isAdding && (
           <button
             onClick={() => setIsAdding(true)}
@@ -68,7 +68,7 @@ function MarginRail({ topicId }) {
       <div className="space-y-1">
         {notes.length === 0 && !isAdding && (
           <p className="font-hand text-sm text-walnut/40 italic">
-            No notes yet — add one in the margin.
+            No side notes yet — add one while you read.
           </p>
         )}
         {notes.map((note, i) => (

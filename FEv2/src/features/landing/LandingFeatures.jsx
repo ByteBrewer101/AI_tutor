@@ -6,9 +6,9 @@ import { slideUp, staggerContainer } from '@/design/motion'
 const features = [
   {
     icon: PenTool,
-    title: 'Margin Notes',
+    title: 'Side Notes',
     description:
-      'Write in the margins like a real notebook. Your notes accumulate over time, making every chapter feel well-thumbed.',
+      'Jot side notes as you read, like a real notebook. Your notes accumulate over time, making every chapter feel well-thumbed.',
   },
   {
     icon: Sparkles,

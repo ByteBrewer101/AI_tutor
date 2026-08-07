@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, BookOpen } from 'lucide-react'
+import { Plus, BookOpen, Download, Trash2, Loader2 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ProgressThread } from '@/components/ui/progress-thread'
 import { Stamp } from '@/components/ui/stamp'
+import { ConfirmDialog } from '@/components/ui/confirm'
+import { PdfExport } from '@/components/print/PdfExport'
 import { CoffeeRing, DogEar } from '@/design/textures'
 import { staggerContainer, slideUp, liftOnHover } from '@/design/motion'
 import { shouldShowCoffeeRing, shouldShowDogEar } from '@/lib/earnedDetails'
@@ -18,6 +20,11 @@ function LibraryPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newDesc, setNewDesc] = useState('')
+  const [downloadingId, setDownloadingId] = useState(null)
+  const [pdfData, setPdfData] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
 
   useEffect(() => {
     api.fetchNotebooksList().then(setNotebooks)
@@ -31,6 +38,42 @@ function LibraryPage() {
     setNewDesc('')
     setShowCreate(false)
     navigate(`/app/notebook/${nb.id}`)
+  }
+
+  const handleDownloadPdf = async (nb) => {
+    if (downloadingId || nb.topics.length === 0) return
+    setDownloadingId(nb.id)
+    try {
+      const sections = []
+      for (const topic of nb.topics) {
+        try {
+          const data = await api.fetchTopicContent(topic.id)
+          if (data?.content && data.content.trim()) {
+            sections.push({ heading: topic.title, content: data.content })
+          }
+        } catch {
+          // skip topics without readable content
+        }
+      }
+      setPdfData({ title: nb.title, sections })
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget || deleting) return
+    setDeleting(true)
+    setDeleteError(null)
+    const ok = await api.deleteNotebook(deleteTarget.id)
+    if (ok) {
+      setNotebooks((prev) => prev.filter((n) => n.id !== deleteTarget.id))
+      setDeleteTarget(null)
+      setDeleting(false)
+    } else {
+      setDeleting(false)
+      setDeleteError('Failed to delete the notebook. Please try again.')
+    }
   }
 
   return (
@@ -136,13 +179,45 @@ function LibraryPage() {
                       <DogEar className="absolute top-0 right-0" />
                     )}
 
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between gap-3 mb-3">
                       <h3 className="font-display text-lg font-medium text-ink">
                         {nb.title}
                       </h3>
-                      {progress === 100 && (
-                        <Stamp variant="brass">done</Stamp>
-                      )}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {progress === 100 && (
+                          <Stamp variant="brass">done</Stamp>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleDownloadPdf(nb)
+                          }}
+                          disabled={downloadingId !== null || nb.topics.length === 0}
+                          aria-label="Download notebook as PDF"
+                          className="w-8 h-8 rounded-[3px] flex items-center justify-center text-walnut/50 hover:text-pine hover:bg-pine/10 transition-colors disabled:pointer-events-none disabled:opacity-40"
+                        >
+                          {downloadingId === nb.id ? (
+                            <Loader2 size={15} className="animate-spin" />
+                          ) : (
+                            <Download size={15} />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setDeleteError(null)
+                            setDeleteTarget(nb)
+                          }}
+                          aria-label="Delete notebook"
+                          className="w-8 h-8 rounded-[3px] flex items-center justify-center text-walnut/50 hover:text-claret hover:bg-claret/10 transition-colors"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </div>
 
                     {nb.description && (
@@ -167,6 +242,25 @@ function LibraryPage() {
           )
         })}
       </motion.div>
+
+      {pdfData && (
+        <PdfExport
+          title={pdfData.title}
+          sections={pdfData.sections}
+          onClose={() => setPdfData(null)}
+        />
+      )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete this notebook?"
+        message={`"${deleteTarget?.title}" and all of its content will be permanently deleted. This cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+        busy={deleting}
+        error={deleteError}
+      />
     </div>
   )
 }

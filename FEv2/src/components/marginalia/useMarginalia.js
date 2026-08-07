@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 
-const STORAGE_KEY = 'marginalia-notes'
+const STORAGE_KEY = 'nuro-notes'
 
 function loadNotes() {
   try {

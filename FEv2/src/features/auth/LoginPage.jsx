@@ -34,7 +34,7 @@ function LoginPage() {
       <div className="w-full max-w-md relative">
         <div className="text-center mb-8">
           <span className="font-display text-3xl font-semibold text-pine">
-            The Marginalia
+            Nuro
           </span>
           <p className="font-body text-walnut mt-2">
             Sign in to pick up where you left off.

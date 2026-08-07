@@ -389,3 +389,92 @@
   --tw-prose-th-borders: var(--color-border);
   --tw-prose-td-borders: var(--color-border);
 }
+
+/* ── PDF export (print) ───────────────────────────────────────── */
+@media print {
+  #root {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+  }
+
+  .print-overlay {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    overflow: visible !important;
+  }
+
+  .print-toolbar {
+    display: none !important;
+  }
+
+  .print-scroll {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  .print-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  /* Force a light document regardless of the active app theme */
+  .print-doc {
+    --tw-prose-body: #1f2430 !important;
+    --tw-prose-headings: #141824 !important;
+    --tw-prose-bold: #141824 !important;
+    --tw-prose-links: #1f6f54 !important;
+    --tw-prose-counters: #4b5563 !important;
+    --tw-prose-bullets: #4b5563 !important;
+    --tw-prose-hr: #d1d5db !important;
+    --tw-prose-quotes: #374151 !important;
+    --tw-prose-quote-borders: #1f6f54 !important;
+    --tw-prose-captions: #4b5563 !important;
+    --tw-prose-code: #b3155a !important;
+    --tw-prose-pre-code: #1f2430 !important;
+    --tw-prose-pre-bg: #f3f4f6 !important;
+    --tw-prose-th-borders: #d1d5db !important;
+    --tw-prose-td-borders: #d1d5db !important;
+    color: #1f2430 !important;
+    background: #ffffff !important;
+  }
+
+  .print-doc .print-title,
+  .print-doc h1,
+  .print-doc h2,
+  .print-doc h3,
+  .print-doc h4 {
+    color: #141824 !important;
+  }
+
+  .print-doc a {
+    color: #1f6f54 !important;
+    text-decoration: underline !important;
+  }
+
+  .print-doc code.hljs {
+    background: #f3f4f6 !important;
+    color: #1f2430 !important;
+  }
+}
+
+/* ── Hidden scrollbars ────────────────────────────────────────── */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

@@ -18,23 +18,30 @@ import {
   Lightbulb,
   PanelRightClose,
   PanelRightOpen,
+  Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Stamp } from '@/components/ui/stamp'
+import { PdfExport } from '@/components/print/PdfExport'
 import { pageTurn } from '@/design/motion'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/lib/useAuth'
 import * as api from '@/lib/api'
 
 const SUMMARIZE_THRESHOLD = 5
-const RAIL_COLLAPSED_KEY = 'marginalia-chat-sidebar-collapsed'
+const RAIL_COLLAPSED_KEY = 'nuro-chat-sidebar-collapsed'
 
 function TopicSession() {
   const { notebookId, topicId } = useParams()
+  const { user } = useAuth()
   const [topic, setTopic] = useState(null)
   const [notebook, setNotebook] = useState(null)
   const [loading, setLoading] = useState(true)
   const [mode, setMode] = useState('read')
   const [contentVersion, setContentVersion] = useState(0)
+  const [content, setContent] = useState('')
+  const [contentLoading, setContentLoading] = useState(true)
+  const [docTitle, setDocTitle] = useState('')
+  const [showPdf, setShowPdf] = useState(false)
 
   const [chatMessages, setChatMessages] = useState([])
   const [chatSending, setChatSending] = useState(false)
@@ -71,6 +78,18 @@ function TopicSession() {
       ])
     })
   }, [notebookId, topicId])
+
+  useEffect(() => {
+    let cancelled = false
+    api.fetchTopicContent(topicId).then((data) => {
+      if (!cancelled) {
+        setContent(data?.content || '')
+        setDocTitle(data?.title || '')
+        setContentLoading(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [topicId, contentVersion])
 
   const handleContentUpdated = useCallback(() => {
     setContentVersion((v) => v + 1)
@@ -206,16 +225,19 @@ function TopicSession() {
     )
   }
 
+  const isOwner = !!notebook && notebook.ownerId === user?.id
+
   const modes = [
     { id: 'read', label: 'Read', icon: BookOpen },
-    { id: 'learn', label: 'Learn', icon: MessageCircle },
+    ...(isOwner ? [{ id: 'learn', label: 'Learn', icon: MessageCircle }] : []),
     { id: 'quiz', label: 'Questions', icon: HelpCircle },
   ]
+  const safeMode = modes.some((m) => m.id === mode) ? mode : 'read'
 
   const latestAssistant = chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === 'assistant'
     ? chatMessages[chatMessages.length - 1]
     : null
-  const suggestions = mode === 'learn' && latestAssistant?.suggestions?.length > 0 && !chatSending
+  const suggestions = safeMode === 'learn' && latestAssistant?.suggestions?.length > 0 && !chatSending
     ? latestAssistant.suggestions
     : []
 
@@ -223,20 +245,40 @@ function TopicSession() {
     <div className="flex min-h-[calc(100vh-48px)]">
       <div className="flex-1 min-w-0 flex flex-col px-6 lg:px-10 pt-6">
         <div className="mx-auto w-full max-w-[680px] flex-1 flex flex-col min-h-0">
-          <div className="mb-4">
-            <p className="font-mono text-xs text-walnut/50">
-              {notebook?.title}
-            </p>
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-base min-w-0">
+              <Link
+                to={`/app/notebook/${notebookId}`}
+                className="no-underline text-walnut hover:text-ink transition-colors font-body"
+              >
+                {notebook?.title}
+              </Link>
+              <span className="text-walnut/40 select-none">›</span>
+              <span className="font-display font-medium text-ink truncate">
+                {topic?.title}
+              </span>
+            </div>
+            {safeMode === 'read' && content.trim() && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowPdf(true)}
+                className="shrink-0"
+              >
+                <Download size={14} />
+                Download PDF
+              </Button>
+            )}
           </div>
 
           <div className="flex-1 min-h-0">
             <AnimatePresence mode="wait">
-              {mode === 'read' && (
+              {safeMode === 'read' && (
                 <motion.div key="read" {...pageTurn} className="min-h-full">
-                  <ReadMode topicId={topicId} contentVersion={contentVersion} />
+                  <ReadMode content={content} loading={contentLoading} />
                 </motion.div>
               )}
-              {mode === 'learn' && (
+              {safeMode === 'learn' && (
                 <motion.div key="learn" {...pageTurn} className="min-h-full flex flex-col">
                   <LearnMode
                     messages={chatMessages}
@@ -244,7 +286,7 @@ function TopicSession() {
                   />
                 </motion.div>
               )}
-              {mode === 'quiz' && (
+              {safeMode === 'quiz' && (
                 <motion.div key="quiz" {...pageTurn} className="min-h-full">
                   <QuizMode topicId={topicId} />
                 </motion.div>
@@ -263,11 +305,10 @@ function TopicSession() {
                     onClick={() => setMode(id)}
                     className={cn(
                       'flex items-center gap-1.5 px-4 py-2 text-sm font-body rounded-[2px] transition-colors',
-                      mode === id
+                      safeMode === id
                         ? 'bg-paper text-pine shadow-hard border border-walnut/10'
                         : 'text-walnut hover:text-ink'
-                    )}
-                  >
+                    )}                  >
                     <Icon size={14} />
                     {label}
                   </button>
@@ -275,7 +316,7 @@ function TopicSession() {
               </div>
             </div>
 
-            {mode === 'learn' && (
+            {safeMode === 'learn' && (
               <>
                 <AnimatePresence>
                   {chatToast && (
@@ -310,13 +351,21 @@ function TopicSession() {
 
       <StudyRail
         modes={modes}
-        activeMode={mode}
+        activeMode={safeMode}
         onModeChange={setMode}
         collapsed={railCollapsed}
         onToggleCollapse={() => setRailCollapsed((c) => !c)}
         suggestions={suggestions}
         onSuggestionClick={sendMessage}
       />
+
+      {showPdf && (
+        <PdfExport
+          title={docTitle || 'Topic'}
+          sections={[{ heading: null, content }]}
+          onClose={() => setShowPdf(false)}
+        />
+      )}
     </div>
   )
 }
@@ -388,21 +437,7 @@ function StudyRail({ modes, activeMode, onModeChange, collapsed, onToggleCollaps
   )
 }
 
-function ReadMode({ topicId, contentVersion }) {
-  const [content, setContent] = useState('')
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let cancelled = false
-    api.fetchTopicContent(topicId).then((data) => {
-      if (!cancelled) {
-        setContent(data?.content || '')
-        setLoading(false)
-      }
-    })
-    return () => { cancelled = true }
-  }, [topicId, contentVersion])
-
+function ReadMode({ content, loading }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -571,66 +606,107 @@ function LearnInput({ onSend, onSave, sending, summarizing, canSave }) {
 }
 
 function QuizMode({ topicId }) {
-  const [questions, setQuestions] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [generating, setGenerating] = useState(false)
-  const [current, setCurrent] = useState(0)
+  const [question, setQuestion] = useState(null)
+  const [questionNumber, setQuestionNumber] = useState(0)
+  const [difficulty, setDifficulty] = useState(1)
+  const [askedQuestions, setAskedQuestions] = useState([])
+  const [correctCount, setCorrectCount] = useState(0)
+  const [wrongCount, setWrongCount] = useState(0)
   const [selected, setSelected] = useState(null)
   const [revealed, setRevealed] = useState(false)
-  const [score, setScore] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState(false)
+  const mounted = useRef(true)
 
-  const fetchQuiz = useCallback(async () => {
-    setGenerating(true)
-    try {
-      const data = await api.generateQuiz(topicId)
-      setQuestions(data?.questions || [])
-    } catch {
-      setQuestions([])
-    } finally {
-      setLoading(false)
-      setGenerating(false)
-    }
-  }, [topicId])
+  const fetchQuestion = useCallback(
+    async (ctx) => {
+      setGenerating(true)
+      setError(false)
+      try {
+        const q = await api.generateNextQuestion(topicId, ctx)
+        if (!mounted.current) return
+        setQuestion(q)
+        setQuestionNumber((n) => (ctx.reset ? 1 : n + 1))
+        setDifficulty(ctx.difficulty)
+        setSelected(null)
+        setRevealed(false)
+      } catch {
+        if (mounted.current) setError(true)
+      } finally {
+        if (mounted.current) {
+          setGenerating(false)
+          setLoading(false)
+        }
+      }
+    },
+    [topicId]
+  )
 
   useEffect(() => {
+    mounted.current = true
     let cancelled = false
     const load = async () => {
       setGenerating(true)
       try {
-        const data = await api.generateQuiz(topicId)
-        if (!cancelled) setQuestions(data?.questions || [])
+        const q = await api.generateNextQuestion(topicId, {
+          difficulty: 1,
+          askedQuestions: [],
+          correctCount: 0,
+          wrongCount: 0,
+        })
+        if (!cancelled) {
+          setQuestion(q)
+          setQuestionNumber(1)
+          setDifficulty(1)
+        }
       } catch {
-        if (!cancelled) setQuestions([])
+        if (!cancelled) setError(true)
       } finally {
         if (!cancelled) {
-          setLoading(false)
           setGenerating(false)
+          setLoading(false)
         }
       }
     }
     load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      mounted.current = false
+    }
   }, [topicId])
 
   const handleCheck = () => {
-    if (questions[current]?.type === 'mcq' && selected === questions[current].answer) {
-      setScore((s) => s + 1)
-    }
+    if (selected === question.answer) setCorrectCount((c) => c + 1)
+    else setWrongCount((w) => w + 1)
     setRevealed(true)
   }
 
   const handleNext = () => {
-    setCurrent((c) => c + 1)
-    setSelected(null)
-    setRevealed(false)
+    const nextAsked = [...askedQuestions, question.question]
+    setAskedQuestions(nextAsked)
+    setDifficulty((d) => d + 1)
+    fetchQuestion({
+      difficulty: difficulty + 1,
+      askedQuestions: nextAsked,
+      correctCount,
+      wrongCount,
+    })
   }
 
   const handleRegenerate = () => {
-    setCurrent(0)
-    setSelected(null)
-    setRevealed(false)
-    setScore(0)
-    fetchQuiz()
+    setQuestionNumber(0)
+    setAskedQuestions([])
+    setCorrectCount(0)
+    setWrongCount(0)
+    setDifficulty(1)
+    fetchQuestion({
+      difficulty: 1,
+      askedQuestions: [],
+      correctCount: 0,
+      wrongCount: 0,
+      reset: true,
+    })
   }
 
   if (loading) {
@@ -638,40 +714,47 @@ function QuizMode({ topicId }) {
       <div className="flex flex-col items-center justify-center py-16">
         <Loader2 size={24} className={cn('text-walnut/40 mb-4', generating && 'animate-spin')} />
         <p className="font-body text-sm text-walnut/60">
-          {generating ? 'Generating questions...' : 'Loading...'}
+          {generating ? 'Generating question...' : 'Loading...'}
         </p>
       </div>
     )
   }
 
-  if (questions.length === 0) {
+  if (!question) {
     return (
       <div className="text-center py-16">
         <HelpCircle size={40} className="mx-auto text-walnut/30 mb-4" />
-        <p className="font-display text-xl text-ink/60">No questions yet</p>
+        <p className="font-display text-xl text-ink/60">
+          {error ? "Couldn't generate a question" : 'No questions yet'}
+        </p>
         <p className="text-walnut/60 text-sm mt-2 mb-6">
-          Build some content in Learn mode first, then come back for a quiz.
+          {error
+            ? 'Make sure there is content in Learn mode, then try again.'
+            : 'Build some content in Learn mode first, then come back for a quiz.'}
         </p>
         <Button onClick={handleRegenerate} size="sm" variant="secondary">
-          Try generating quiz
+          {error ? 'Try again' : 'Start quiz'}
         </Button>
       </div>
     )
   }
 
-  const q = questions[current]
+  const options = question.options || []
 
   return (
     <div className="max-w-[680px]">
       <div className="flex items-center justify-between mb-6">
-        <span className="font-mono text-xs text-walnut/50">
-          Question {current + 1} of {questions.length}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs text-walnut/50">Question {questionNumber}</span>
+          <span className="font-mono text-xs px-2 py-0.5 rounded-full border border-walnut/20 text-walnut/70">
+            {difficulty <= 2 ? 'Easy' : difficulty <= 4 ? 'Medium' : difficulty <= 7 ? 'Hard' : 'Expert'}
+          </span>
+        </div>
         <div className="flex items-center gap-3">
           <span className="font-mono text-xs text-pine">
-            Score: {score}/{current + (revealed ? 1 : 0)}
+            Score: {correctCount}/{correctCount + wrongCount}
           </span>
-          <Button onClick={handleRegenerate} size="sm" variant="secondary">
+          <Button onClick={handleRegenerate} size="sm" variant="secondary" disabled={generating}>
             New quiz
           </Button>
         </div>
@@ -679,53 +762,47 @@ function QuizMode({ topicId }) {
 
       <AnimatePresence mode="wait">
         <motion.div
-          key={current}
+          key={questionNumber}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           className="mb-8"
         >
-          <p className="font-body text-lg text-ink mb-6">{q.question}</p>
+          <p className="font-body text-lg text-ink mb-6">{question.question}</p>
 
-          {q.type === 'mcq' && q.options && (
-            <div className="space-y-2">
-              {q.options.map((opt, i) => (
-                <button
-                  key={i}
-                  onClick={() => !revealed && setSelected(i)}
-                  className={cn(
-                    'w-full text-left p-3 rounded-[2px] border font-body text-base transition-all',
-                    selected === i
-                      ? 'border-pine bg-pine/5'
-                      : 'border-walnut/20 hover:border-walnut/40',
-                    revealed && i === q.answer && 'border-pine bg-pine/10',
-                    revealed && selected === i && i !== q.answer && 'border-claret/40 bg-claret/5'
+          <div className="space-y-2">
+            {options.map((opt, i) => (
+              <button
+                key={i}
+                onClick={() => !revealed && !generating && setSelected(i)}
+                disabled={generating}
+                className={cn(
+                  'w-full text-left p-3 rounded-[2px] border font-body text-base transition-all',
+                  selected === i
+                    ? 'border-pine bg-pine/5'
+                    : 'border-walnut/20 hover:border-walnut/40',
+                  revealed && i === question.answer && 'border-pine bg-pine/10',
+                  revealed && selected === i && i !== question.answer && 'border-claret/40 bg-claret/5',
+                  generating && 'opacity-60'
+                )}
+              >
+                <span className="flex items-center gap-3">
+                  {selected === i ? (
+                    <CheckCircle size={16} className="text-pine shrink-0" />
+                  ) : (
+                    <Circle size={16} className="text-walnut/30 shrink-0" />
                   )}
-                >
-                  <span className="flex items-center gap-3">
-                    {selected === i ? (
-                      <CheckCircle size={16} className="text-pine shrink-0" />
-                    ) : (
-                      <Circle size={16} className="text-walnut/30 shrink-0" />
-                    )}
-                    {opt}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+                  {opt}
+                </span>
+              </button>
+            ))}
+          </div>
 
-          {q.type === 'open' && (
-            <div className="space-y-3">
-              <textarea
-                placeholder="Write your answer..."
-                className="w-full bg-transparent border border-walnut/20 rounded-[2px] p-3 font-body text-base outline-none focus:border-pine min-h-[100px] resize-none"
-              />
-              {!revealed && (
-                <Button onClick={handleCheck} variant="secondary" size="sm">
-                  Check answer
-                </Button>
-              )}
+          {!revealed && !generating && (
+            <div className="mt-6 flex justify-end">
+              <Button onClick={handleCheck} size="sm" disabled={selected === null}>
+                Check answer
+              </Button>
             </div>
           )}
 
@@ -735,42 +812,26 @@ function QuizMode({ topicId }) {
               animate={{ opacity: 1, y: 0 }}
               className="mt-4 p-4 bg-paper-dark/30 border border-walnut/10 rounded-[2px]"
             >
-              <p className="font-body text-sm text-walnut">{q.answer}</p>
+              <p className="font-body text-sm text-walnut">
+                Correct answer: <strong>{options[question.answer]}</strong>
+              </p>
             </motion.div>
           )}
         </motion.div>
       </AnimatePresence>
 
-      <div className="flex justify-between items-center">
-        <ProgressDots current={current} total={questions.length} />
-        {current < questions.length - 1 ? (
-          <Button onClick={handleNext} size="sm">
+      <div className="flex justify-end items-center gap-3">
+        {generating && (
+          <span className="font-body text-sm text-walnut/60 flex items-center gap-2">
+            <Loader2 size={14} className="animate-spin" /> Generating next question...
+          </span>
+        )}
+        {revealed && (
+          <Button onClick={handleNext} size="sm" disabled={generating}>
             Next question
           </Button>
-        ) : (
-          <div className="text-center">
-            <Stamp variant="brass" className="text-lg">
-              {score}/{questions.length} correct
-            </Stamp>
-          </div>
         )}
       </div>
-    </div>
-  )
-}
-
-function ProgressDots({ current, total }) {
-  return (
-    <div className="flex gap-1.5">
-      {Array.from({ length: total }, (_, i) => (
-        <div
-          key={i}
-          className={cn(
-            'w-2 h-2 rounded-full transition-colors',
-            i <= current ? 'bg-pine' : 'bg-walnut/20'
-          )}
-        />
-      ))}
     </div>
   )
 }

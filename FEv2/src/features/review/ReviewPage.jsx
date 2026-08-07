@@ -74,7 +74,7 @@ function ReviewPage() {
             <div className="text-center py-16">
               <p className="font-display text-xl text-ink/60">No notes to review yet</p>
               <p className="text-walnut/60 text-sm mt-2">
-                Add margin notes while reading, and they'll appear here.
+                Add side notes while reading, and they'll appear here.
               </p>
             </div>
           )}
