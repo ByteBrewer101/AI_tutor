@@ -30,6 +30,13 @@ def _difficulty_label(difficulty: int) -> str:
 class AI_Service:
     @staticmethod
     def _build_llm(llm_config: ModelConfig | None = None) -> BaseChatModel:
+        if settings.AI_PROVIDER == "ollama":
+            return ChatOllama(
+                model=settings.OLLAMA_MODEL,
+                base_url=settings.OLLAMA_BASE_URL,
+                temperature=0.7,
+            )
+
         cfg = llm_config or ModelConfig()
 
         if cfg.provider == "gemini":

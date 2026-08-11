@@ -119,6 +119,23 @@
     outline-offset: 2px;
   }
 
+  /* Neutralize the browser's forced white autofill background so
+     autofilled inputs keep the theme's paper color and ink text */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--color-paper) inset;
+    -webkit-text-fill-color: var(--color-ink);
+    caret-color: var(--color-ink);
+    transition: background-color 9999999s ease-in-out 0s;
+  }
+
 }
 
 @keyframes ink-fill {
