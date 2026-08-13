@@ -8,7 +8,7 @@ from app.api.v1.notebooks import router as notebooks_router
 from app.config import settings
 
 
-app = FastAPI(title=settings.APP_NAME)
+app = FastAPI(title=settings.APP_NAME,root_path="/api")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
