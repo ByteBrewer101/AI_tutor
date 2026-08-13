@@ -17,6 +17,23 @@ export const PROVIDERS = {
   },
 }
 
+export function isModelConfigured() {
+  let raw
+  try {
+    raw = localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return false
+  }
+  if (!raw) return false
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed.provider === 'gemini') return !!parsed.apiKey
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function getDefaultModelConfig() {
   return {
     provider: 'ollama',

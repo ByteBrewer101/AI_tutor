@@ -2,10 +2,13 @@ import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { AiSetupDialog } from './AiSetupDialog'
+import { isModelConfigured } from '@/lib/modelConfig'
 import { cn } from '@/lib/utils'
 
 function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [showAiSetup, setShowAiSetup] = useState(() => !isModelConfigured())
   const { pathname } = useLocation()
 
   const isTopicPage = pathname.includes('/topic/')
@@ -24,6 +27,8 @@ function AppLayout() {
           </div>
         </main>
       </div>
+
+      <AiSetupDialog open={showAiSetup} onClose={() => setShowAiSetup(false)} />
     </div>
   )
 }
