@@ -17,6 +17,23 @@ services:
       timeout: 5s
       retries: 10
 
+  migrations:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_tutor_migrations
+    command: alembic upgrade head
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-mysecretpassword}@db:5432/${DB_NAME:-ai_tutor}
+    depends_on:
+      db:
+        condition: service_healthy
+
   backend:
     build:
       context: .
@@ -34,6 +51,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     volumes:
       - ./storage/markdown:/app/storage/markdown
 
